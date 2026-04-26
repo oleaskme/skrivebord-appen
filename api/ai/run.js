@@ -72,27 +72,75 @@ JSON-format:
   "conflicts": ["..."]
 }`
 
+const REVIEW_SYSTEM_PROMPT = `Du er en AI-assistent som gjennomgår MASTER-dokumenter for å identifisere oppgaver og risikoer.
+
+Les dokumentet grundig og returner kun oppgaver og risikoer som IKKE allerede er eksplisitt nevnt i dokumentet som løste eller fullførte.
+Fokuser på handlingspunkter, frister, ansvarsforhold og potensielle risikoer som fremgår av innholdet.
+
+Returner alltid gyldig JSON uten markdown-blokker:
+{
+  "suggested_tasks": [{ "title": "...", "due_date": null }],
+  "suggested_risks": [{ "title": "...", "severity": "high|medium|low" }]
+}`
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Metode ikke støttet' })
 
-  const { folderId, masterDocId, inputDocIds } = req.body
-  if (!folderId || !masterDocId || !inputDocIds?.length) {
-    return res.status(400).json({ error: 'folderId, masterDocId og inputDocIds kreves' })
+  const { folderId, masterDocId, inputDocIds, mode } = req.body
+  const isReview = mode === 'review' || !inputDocIds?.length
+
+  if (!folderId || !masterDocId) {
+    return res.status(400).json({ error: 'folderId og masterDocId kreves' })
+  }
+  if (!isReview && !inputDocIds?.length) {
+    return res.status(400).json({ error: 'inputDocIds kreves for full AI-kjøring' })
   }
 
   try {
-    // Hent mappe, MASTER-dok og INPUT-dok fra Supabase
-    const [folderRes, masterRes, inputsRes] = await Promise.all([
+    const [folderRes, masterRes] = await Promise.all([
       supabase.from('folders').select('name, purpose').eq('id', folderId).single(),
       supabase.from('master_documents').select('*').eq('id', masterDocId).single(),
-      supabase.from('input_documents').select('*').in('id', inputDocIds),
     ])
 
     const folder = folderRes.data
     const master = masterRes.data
+
+    // ── Gjennomgangs-modus: kun identifiser oppgaver og risikoer ──
+    if (isReview) {
+      const userMessage = `
+Mappe: ${folder.name}
+Formål: ${folder.purpose ?? '(ikke oppgitt)'}
+
+MASTER-dokument: ${master.name}
+AI-instruksjon: ${master.ai_instruction ?? '(ingen)'}
+
+Innhold:
+${master.content || '(tomt)'}
+
+Gå gjennom dokumentet og identifiser nye oppgaver og risikoer. Returner JSON.`
+
+      const response = await anthropic.messages.create({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 2048,
+        system: REVIEW_SYSTEM_PROMPT,
+        messages: [{ role: 'user', content: userMessage }],
+      })
+
+      const raw = response.content[0].text.trim()
+      let result
+      try { result = JSON.parse(raw) }
+      catch { const m = raw.match(/\{[\s\S]*\}/); result = m ? JSON.parse(m[0]) : { suggested_tasks: [], suggested_risks: [] } }
+
+      return res.json({
+        suggested_tasks:  result.suggested_tasks  ?? [],
+        suggested_risks:  result.suggested_risks  ?? [],
+      })
+    }
+
+    // ── Full modus: oppdater MASTER med INPUT-dokumenter ──
+    const inputsRes = await supabase.from('input_documents').select('*').in('id', inputDocIds)
     const inputs = inputsRes.data ?? []
 
-    // Bygg kontekst for AI
     const inputText = inputs.map(d =>
       `--- INPUT: ${d.title} (${d.type}) ---\n${d.content ?? '(tomt)'}\n`
     ).join('\n')
@@ -130,7 +178,6 @@ Oppdater MASTER-dokumentet basert på INPUT-dokumentene og returner JSON.`
     try {
       result = JSON.parse(rawText)
     } catch {
-      // Prøv å ekstrahere JSON fra svaret dersom det kom med forklaringstekst
       const match = rawText.match(/\{[\s\S]*\}/)
       if (!match) throw new Error('Claude returnerte ikke gyldig JSON')
       result = JSON.parse(match[0])

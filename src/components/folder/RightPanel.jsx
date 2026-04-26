@@ -28,8 +28,11 @@ function splitContent(raw) {
 
 const plainToHtml = normalizeToHtml
 
+const SEV_LABEL = { high: 'Høy', medium: 'Middels', low: 'Lav' }
+const SEV_CLS   = { high: 'bg-red-100 text-red-700', medium: 'bg-yellow-100 text-yellow-700', low: 'bg-gray-100 text-gray-500' }
+
 // ---- MASTER-visning ----
-function MasterViewer({ doc, onSaved }) {
+function MasterViewer({ doc, folderId, onSaved }) {
   const { activeUser } = useUser()
   const initial = splitContent(doc.content)
   const [bodyHtml, setBodyHtml] = useState(plainToHtml(initial.body))
@@ -39,12 +42,18 @@ function MasterViewer({ doc, onSaved }) {
   const [exporting, setExporting] = useState(false)
   const [uploadingDrive, setUploadingDrive] = useState(false)
   const [driveMsg, setDriveMsg] = useState(null)
+  const [reviewing, setReviewing] = useState(false)
+  const [reviewResult, setReviewResult] = useState(null)
+  const [approvedTasks, setApprovedTasks] = useState([])
+  const [approvedRisks, setApprovedRisks] = useState([])
+  const [savingReview, setSavingReview] = useState(false)
 
   useEffect(() => {
     const parts = splitContent(doc.content)
     setBodyHtml(plainToHtml(parts.body))
     setChangelog(parts.changelog)
     setDirty(false)
+    setReviewResult(null)
   }, [doc.id, doc.content])
 
   function buildFullContent() {
@@ -60,6 +69,46 @@ function MasterViewer({ doc, onSaved }) {
     setSaving(false)
     setDirty(false)
     onSaved()
+    // Kjør AI-gjennomgang i bakgrunnen
+    runReview()
+  }
+
+  async function runReview() {
+    setReviewing(true)
+    setReviewResult(null)
+    try {
+      const res = await fetch('/api/ai/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ folderId, masterDocId: doc.id, mode: 'review' }),
+      })
+      const data = await res.json()
+      if (!res.ok) return
+      if (data.suggested_tasks?.length || data.suggested_risks?.length) {
+        setReviewResult(data)
+        setApprovedTasks(data.suggested_tasks?.map((_, i) => i) ?? [])
+        setApprovedRisks(data.suggested_risks?.map((_, i) => i) ?? [])
+      }
+    } catch {}
+    finally { setReviewing(false) }
+  }
+
+  async function handleSaveReview() {
+    setSavingReview(true)
+    const tasks = reviewResult.suggested_tasks ?? []
+    const risks = reviewResult.suggested_risks ?? []
+    if (approvedTasks.length > 0) {
+      await supabase.from('tasks').insert(
+        approvedTasks.map(i => ({ folder_id: folderId, title: tasks[i].title, due_date: tasks[i].due_date ?? null, ai_suggested: true }))
+      )
+    }
+    if (approvedRisks.length > 0) {
+      await supabase.from('risks').insert(
+        approvedRisks.map(i => ({ folder_id: folderId, title: risks[i].title, severity: risks[i].severity ?? 'medium', source_type: 'master', source_id: doc.id, status: 'confirmed' }))
+      )
+    }
+    setSavingReview(false)
+    setReviewResult(null)
   }
 
   async function handleDownloadDocx() {
@@ -120,6 +169,12 @@ function MasterViewer({ doc, onSaved }) {
             className="text-xs border border-gray-200 rounded-lg px-3 py-1.5 text-gray-600 hover:border-gray-300 hover:text-gray-800 disabled:opacity-50 transition-colors">
             {uploadingDrive ? '...' : '☁ Lagre til Drive'}
           </button>
+          {reviewing && (
+            <span className="text-xs text-gray-400 flex items-center gap-1">
+              <span className="w-3 h-3 border-2 border-gray-300 border-t-primary-500 rounded-full animate-spin inline-block" />
+              AI gjennomgår...
+            </span>
+          )}
           {dirty && (
             <button onClick={handleSave} disabled={saving}
               className="bg-primary-500 text-white text-xs rounded-lg px-4 py-1.5 hover:bg-primary-600 disabled:opacity-50 transition-colors">
@@ -139,6 +194,43 @@ function MasterViewer({ doc, onSaved }) {
             placeholder="Begynn å skrive MASTER-dokumentet her..."
           />
         </div>
+        {reviewResult && (
+          <div className="shrink-0 border border-primary-200 rounded-xl overflow-hidden bg-primary-50">
+            <div className="flex items-center justify-between px-4 py-2.5 bg-primary-100 border-b border-primary-200">
+              <p className="text-xs font-semibold text-primary-800">
+                🤖 AI fant {(reviewResult.suggested_tasks?.length ?? 0) + (reviewResult.suggested_risks?.length ?? 0)} nye elementer
+              </p>
+              <button onClick={() => setReviewResult(null)} className="text-primary-400 hover:text-primary-600 text-xs">Ignorer</button>
+            </div>
+            <div className="px-4 py-3 space-y-2">
+              {reviewResult.suggested_tasks?.map((t, i) => (
+                <label key={`t${i}`} className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={approvedTasks.includes(i)}
+                    onChange={() => setApprovedTasks(prev => prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i])}
+                    className="w-3.5 h-3.5 accent-primary-500 shrink-0" />
+                  <span className="text-xs text-gray-700 flex-1">{t.title}</span>
+                  <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium shrink-0">Oppgave</span>
+                </label>
+              ))}
+              {reviewResult.suggested_risks?.map((r, i) => (
+                <label key={`r${i}`} className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={approvedRisks.includes(i)}
+                    onChange={() => setApprovedRisks(prev => prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i])}
+                    className="w-3.5 h-3.5 accent-primary-500 shrink-0" />
+                  <span className="text-xs text-gray-700 flex-1">{r.title}</span>
+                  <span className={`text-xs px-1.5 py-0.5 rounded font-medium shrink-0 ${SEV_CLS[r.severity] ?? SEV_CLS.low}`}>
+                    {SEV_LABEL[r.severity] ?? 'Lav'}
+                  </span>
+                </label>
+              ))}
+              <button onClick={handleSaveReview} disabled={savingReview || (approvedTasks.length + approvedRisks.length === 0)}
+                className="w-full mt-1 bg-primary-600 text-white text-xs rounded-lg py-1.5 font-semibold hover:bg-primary-700 disabled:opacity-50 transition-colors">
+                {savingReview ? 'Lagrer...' : `Lagre valgte (${approvedTasks.length + approvedRisks.length})`}
+              </button>
+            </div>
+          </div>
+        )}
+
         {changelog.trim() && (
           <div className="shrink-0 border border-gray-100 rounded-lg overflow-hidden">
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-3 py-2 bg-gray-50 border-b border-gray-100">
@@ -219,7 +311,7 @@ export default function RightPanel({ selectedDoc, masterDocs, inputDocs, onMaste
     if (!selectedDoc) return <EmptyState />
     if (selectedDoc.type === 'master') {
       const doc = masterDocs.find(d => d.id === selectedDoc.id)
-      return doc ? <MasterViewer key={doc.id} doc={doc} onSaved={onMasterSaved} /> : null
+      return doc ? <MasterViewer key={doc.id} doc={doc} folderId={folderId} onSaved={onMasterSaved} /> : null
     }
     if (selectedDoc.type === 'input') {
       const doc = inputDocs.find(d => d.id === selectedDoc.id)
