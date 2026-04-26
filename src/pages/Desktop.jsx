@@ -96,12 +96,12 @@ export default function Desktop() {
       </div>
 
       {/* Sone B — KPI-panel (30%) */}
-      <div className="h-[30vh] bg-gray-50 border-b border-gray-100 px-8 py-4 shrink-0">
-        <KPIPanel />
+      <div className="h-[30vh] bg-blue-50 border-b border-blue-100 px-8 py-4 shrink-0">
+        <KPIPanel userId={activeUser.id} />
       </div>
 
       {/* Sone C — Mappeoversikt (60%) */}
-      <div className="flex-1 overflow-y-auto px-8 py-6">
+      <div className="flex-1 overflow-y-auto px-8 py-6 bg-gray-50">
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
             Mapper ({filtered.length})
