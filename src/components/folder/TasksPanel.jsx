@@ -95,10 +95,29 @@ export default function TasksPanel({ folderId, folderName }) {
   }
 
   async function handleSync() {
+    if (!activeUser.google_account_email) return
     setSyncing(true)
     try {
-      const listId = tasks.find(t => t.google_tasklist_id)?.google_tasklist_id
-      if (!listId) return
+      // Finn eller opprett en taskliste for denne mappen
+      let listId = tasks.find(t => t.google_tasklist_id)?.google_tasklist_id
+      if (!listId) {
+        const { list } = await api.tasks.createList(activeUser.id, folderName)
+        listId = list.id
+      }
+
+      // Push alle lokale oppgaver som mangler Google Tasks-ID
+      const unsynced = tasks.filter(t => !t.google_tasks_id)
+      for (const task of unsynced) {
+        try {
+          const { task: gTask } = await api.tasks.createItem(activeUser.id, listId, task.title, task.due_date || null)
+          await supabase.from('tasks').update({
+            google_tasks_id: gTask.id,
+            google_tasklist_id: listId,
+          }).eq('id', task.id)
+        } catch {}
+      }
+
+      // Pull statusendringer fra Google Tasks
       const { items } = await api.tasks.getItems(activeUser.id, listId)
       for (const item of items) {
         const local = tasks.find(t => t.google_tasks_id === item.id)
@@ -107,6 +126,7 @@ export default function TasksPanel({ folderId, folderName }) {
           await supabase.from('tasks').update({ status }).eq('id', local.id)
         }
       }
+
       await loadTasks()
     } finally {
       setSyncing(false)
@@ -124,10 +144,10 @@ export default function TasksPanel({ folderId, folderName }) {
       <div className="flex items-center justify-between px-6 py-3 border-b border-gray-100 shrink-0">
         <h3 className="font-semibold text-gray-700">Oppgaver</h3>
         <div className="flex gap-2">
-          {tasks.some(t => t.google_tasklist_id) && (
+          {activeUser.google_account_email && (
             <button onClick={handleSync} disabled={syncing}
               className="text-xs text-gray-400 hover:text-gray-600 border border-gray-200 rounded px-2 py-1 transition-colors">
-              {syncing ? 'Synkroniserer...' : '↻ Sync'}
+              {syncing ? 'Synkroniserer...' : '↻ Sync med Google Tasks'}
             </button>
           )}
           <button onClick={() => setShowForm(f => !f)}
