@@ -7,3 +7,23 @@
     @apply bg-gray-50 text-gray-900 font-sans;
   }
 }
+
+/* TipTap editor content styling */
+.tiptap-editor .tiptap {
+  @apply outline-none min-h-full p-4 text-sm text-gray-800 leading-relaxed;
+}
+.tiptap-editor .tiptap h1 { @apply text-2xl font-bold text-gray-900 mt-4 mb-2; }
+.tiptap-editor .tiptap h2 { @apply text-xl font-semibold text-gray-800 mt-3 mb-2; }
+.tiptap-editor .tiptap h3 { @apply text-lg font-semibold text-gray-700 mt-2 mb-1; }
+.tiptap-editor .tiptap p  { @apply mb-2; }
+.tiptap-editor .tiptap strong { @apply font-semibold; }
+.tiptap-editor .tiptap em { @apply italic; }
+.tiptap-editor .tiptap ul { @apply list-disc pl-5 mb-2 space-y-0.5; }
+.tiptap-editor .tiptap ol { @apply list-decimal pl-5 mb-2 space-y-0.5; }
+.tiptap-editor .tiptap li p { @apply mb-0; }
+.tiptap-editor .tiptap blockquote { @apply border-l-4 border-gray-300 pl-4 italic text-gray-600 my-2; }
+.tiptap-editor .tiptap hr { @apply border-gray-200 my-4; }
+.tiptap-editor .tiptap p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  @apply text-gray-300 float-left h-0 pointer-events-none;
+}

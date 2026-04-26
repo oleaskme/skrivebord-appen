@@ -5,6 +5,7 @@ import { useUser } from '../../context/UserContext'
 import TasksPanel from './TasksPanel'
 import MeetingsPanel from './MeetingsPanel'
 import RisksPanel from './RisksPanel'
+import RichTextEditor from '../RichTextEditor'
 
 const TABS = [
   { id: 'doc',      label: 'Dokument' },
@@ -13,22 +14,52 @@ const TABS = [
   { id: 'risks',    label: 'Risikoer' },
 ]
 
+const CHANGELOG_SEP = '--- Endringslogg ---'
+
+function splitContent(raw) {
+  const idx = (raw ?? '').indexOf(CHANGELOG_SEP)
+  if (idx < 0) return { body: raw ?? '', changelog: '' }
+  return {
+    body: raw.slice(0, idx).trim(),
+    changelog: raw.slice(idx + CHANGELOG_SEP.length).trim(),
+  }
+}
+
+function plainToHtml(text) {
+  if (!text || text.trimStart().startsWith('<')) return text ?? ''
+  return text.split('\n').map(line =>
+    line.trim() === '' ? '<p></p>' : `<p>${line.trim()}</p>`
+  ).join('')
+}
+
 // ---- MASTER-visning ----
 function MasterViewer({ doc, onSaved }) {
   const { activeUser } = useUser()
-  const [content, setContent] = useState(doc.content ?? '')
+  const initial = splitContent(doc.content)
+  const [bodyHtml, setBodyHtml] = useState(plainToHtml(initial.body))
+  const [changelog, setChangelog] = useState(initial.changelog)
   const [dirty, setDirty] = useState(false)
   const [saving, setSaving] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [uploadingDrive, setUploadingDrive] = useState(false)
   const [driveMsg, setDriveMsg] = useState(null)
 
-  useEffect(() => { setContent(doc.content ?? ''); setDirty(false) }, [doc.id, doc.content])
+  useEffect(() => {
+    const parts = splitContent(doc.content)
+    setBodyHtml(plainToHtml(parts.body))
+    setChangelog(parts.changelog)
+    setDirty(false)
+  }, [doc.id, doc.content])
+
+  function buildFullContent() {
+    if (!changelog.trim()) return bodyHtml
+    return `${bodyHtml}\n\n${CHANGELOG_SEP}\n\n${changelog}`
+  }
 
   async function handleSave() {
     setSaving(true)
     await supabase.from('master_documents')
-      .update({ content, updated_at: new Date().toISOString() })
+      .update({ content: buildFullContent(), updated_at: new Date().toISOString() })
       .eq('id', doc.id)
     setSaving(false)
     setDirty(false)
@@ -101,16 +132,41 @@ function MasterViewer({ doc, onSaved }) {
           )}
         </div>
       </div>
-      <div className="flex-1 overflow-hidden px-6 py-4 flex flex-col gap-2">
+      <div className="flex-1 overflow-hidden px-6 py-4 flex flex-col gap-3">
         {doc.ai_instruction && (
           <p className="text-xs text-gray-400 italic shrink-0">AI-instruksjon: {doc.ai_instruction}</p>
         )}
-        <textarea
-          value={content}
-          onChange={e => { setContent(e.target.value); setDirty(true) }}
-          placeholder="Innhold i MASTER-dokumentet..."
-          className="flex-1 border border-gray-200 rounded-lg p-4 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary-300 resize-none font-mono leading-relaxed"
-        />
+        <div className="flex-1 overflow-hidden">
+          <RichTextEditor
+            content={bodyHtml}
+            onChange={html => { setBodyHtml(html); setDirty(true) }}
+            placeholder="Begynn å skrive MASTER-dokumentet her..."
+          />
+        </div>
+        {changelog.trim() && (
+          <div className="shrink-0 border border-gray-100 rounded-lg overflow-hidden">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-3 py-2 bg-gray-50 border-b border-gray-100">
+              Endringslogg
+            </p>
+            <div className="overflow-y-auto max-h-32">
+              <table className="w-full text-xs">
+                <tbody>
+                  {changelog.split('\n').filter(Boolean).map((line, i) => {
+                    const colonIdx = line.indexOf(':')
+                    const dato    = colonIdx > 0 ? line.slice(0, colonIdx).trim() : ''
+                    const tekst   = colonIdx > 0 ? line.slice(colonIdx + 1).trim() : line
+                    return (
+                      <tr key={i} className="border-t border-gray-50">
+                        <td className="px-3 py-1 text-gray-400 whitespace-nowrap w-32">{dato}</td>
+                        <td className="px-3 py-1 text-gray-600">{tekst}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

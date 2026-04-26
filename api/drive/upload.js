@@ -4,13 +4,56 @@ import { Readable } from 'stream'
 import { supabase } from '../_lib/supabase.js'
 import { getClientForUser } from '../_lib/googleClient.js'
 
+const CHANGELOG_SEP = '--- Endringslogg ---'
+
+function parseInlineRuns(html, size = 22) {
+  const runs = []
+  let bold = false, italic = false
+  const parts = html.split(/(<\/?(?:strong|b|em|i|u)[^>]*>)/gi)
+  for (const part of parts) {
+    const tag = part.toLowerCase()
+    if (/^<strong|^<b(?:\s|>)/.test(tag))  { bold = true; continue }
+    if (/^<\/strong|^<\/b>/.test(tag))      { bold = false; continue }
+    if (/^<em|^<i(?:\s|>)/.test(tag))       { italic = true; continue }
+    if (/^<\/em|^<\/i>/.test(tag))          { italic = false; continue }
+    if (part.startsWith('<'))               continue
+    const text = part.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ')
+    if (text) runs.push(new TextRun({ text, bold, italics: italic, size }))
+  }
+  return runs.length ? runs : [new TextRun({ text: '', size })]
+}
+
+function htmlToDocxParagraphs(html) {
+  const paragraphs = []
+  const blockRe = /<(h[1-6]|p|li|blockquote)([^>]*)>([\s\S]*?)<\/\1>/gi
+  let match
+  while ((match = blockRe.exec(html)) !== null) {
+    const tag   = match[1].toLowerCase()
+    const inner = match[3].replace(/<p>([\s\S]*?)<\/p>/gi, '$1')
+    const runs  = parseInlineRuns(inner)
+    if (tag === 'h1') paragraphs.push(new Paragraph({ children: runs, heading: HeadingLevel.HEADING_1 }))
+    else if (tag === 'h2') paragraphs.push(new Paragraph({ children: runs, heading: HeadingLevel.HEADING_2 }))
+    else if (tag === 'h3') paragraphs.push(new Paragraph({ children: runs, heading: HeadingLevel.HEADING_3 }))
+    else if (tag === 'li') paragraphs.push(new Paragraph({ children: runs, bullet: { level: 0 } }))
+    else paragraphs.push(new Paragraph({ children: runs }))
+  }
+  if (paragraphs.length === 0) {
+    for (const line of html.replace(/<[^>]+>/g, '').split('\n')) {
+      paragraphs.push(line.trim() === '' ? new Paragraph({ text: '' }) : new Paragraph({ children: [new TextRun({ text: line.trim(), size: 22 })] }))
+    }
+  }
+  return paragraphs
+}
+
 function parseContent(raw) {
-  const SEPARATOR = '--- Endringslogg ---'
-  const sepIdx = raw?.indexOf(SEPARATOR) ?? -1
-  const bodyText = sepIdx >= 0 ? raw.slice(0, sepIdx).trim() : (raw ?? '').trim()
-  const changelogText = sepIdx >= 0 ? raw.slice(sepIdx + SEPARATOR.length).trim() : ''
+  const sepIdx = (raw ?? '').indexOf(CHANGELOG_SEP)
+  const bodyText      = sepIdx >= 0 ? raw.slice(0, sepIdx).trim() : (raw ?? '').trim()
+  const changelogText = sepIdx >= 0 ? raw.slice(sepIdx + CHANGELOG_SEP.length).trim() : ''
+  const isHtml = /^\s*</.test(bodyText)
   return {
-    bodyParagraphs: bodyText.split('\n').map(l => l.trim()),
+    bodyParagraphs: isHtml
+      ? htmlToDocxParagraphs(bodyText)
+      : bodyText.split('\n').map(l => l.trim() === '' ? new Paragraph({ text: '' }) : new Paragraph({ children: [new TextRun({ text: l.trim(), size: 22 })] })),
     changelogLines: changelogText.split('\n').map(l => l.trim()).filter(Boolean),
   }
 }
@@ -25,9 +68,7 @@ async function buildDocx(doc, folderName) {
       children: [new TextRun({ text: `Mappe: ${folderName}   |   Versjon: v${version}   |   ${new Date().toLocaleDateString('nb-NO')}`, color: '888888', size: 18 })],
       spacing: { after: 400 },
     }),
-    ...bodyParagraphs.map(line =>
-      line === '' ? new Paragraph({ text: '' }) : new Paragraph({ children: [new TextRun({ text: line, size: 22 })] })
-    ),
+    ...bodyParagraphs,
   ]
 
   if (changelogLines.length > 0) {
