@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import { formatVersion } from '../../lib/hash'
+import { useUser } from '../../context/UserContext'
 import TasksPanel from './TasksPanel'
 import MeetingsPanel from './MeetingsPanel'
 import RisksPanel from './RisksPanel'
@@ -14,9 +15,13 @@ const TABS = [
 
 // ---- MASTER-visning ----
 function MasterViewer({ doc, onSaved }) {
+  const { activeUser } = useUser()
   const [content, setContent] = useState(doc.content ?? '')
   const [dirty, setDirty] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [exporting, setExporting] = useState(false)
+  const [uploadingDrive, setUploadingDrive] = useState(false)
+  const [driveMsg, setDriveMsg] = useState(null)
 
   useEffect(() => { setContent(doc.content ?? ''); setDirty(false) }, [doc.id, doc.content])
 
@@ -30,9 +35,46 @@ function MasterViewer({ doc, onSaved }) {
     onSaved()
   }
 
+  async function handleDownloadDocx() {
+    setExporting(true)
+    try {
+      const res = await fetch(`/api/export/docx?masterDocId=${doc.id}`)
+      if (!res.ok) throw new Error('Eksport feilet')
+      const blob = await res.blob()
+      const url  = URL.createObjectURL(blob)
+      const a    = document.createElement('a')
+      a.href     = url
+      a.download = `${doc.name}_v${formatVersion(doc.version_major, doc.version_minor)}.docx`
+      a.click()
+      URL.revokeObjectURL(url)
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  async function handleSaveToDrive() {
+    setUploadingDrive(true)
+    setDriveMsg(null)
+    try {
+      const res  = await fetch('/api/drive/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: activeUser.id, masterDocId: doc.id }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setDriveMsg('✓ Lagret til Drive')
+      setTimeout(() => setDriveMsg(null), 3000)
+    } catch (err) {
+      setDriveMsg('Feil: ' + err.message)
+    } finally {
+      setUploadingDrive(false)
+    }
+  }
+
   return (
     <div className="h-full flex flex-col">
-      <div className="flex items-center justify-between px-6 py-3 border-b border-gray-100 shrink-0">
+      <div className="flex items-center justify-between px-6 py-3 border-b border-gray-100 shrink-0 gap-2 flex-wrap">
         <div className="flex items-center gap-3 flex-wrap">
           <span className="text-xs bg-primary-100 text-primary-700 px-2 py-0.5 rounded font-mono font-semibold">MASTER</span>
           <h3 className="font-semibold text-gray-800">{doc.name}</h3>
@@ -41,12 +83,23 @@ function MasterViewer({ doc, onSaved }) {
             <span className="text-xs text-orange-500 bg-orange-50 px-2 py-0.5 rounded">⚠ Sporede endringer i Word</span>
           )}
         </div>
-        {dirty && (
-          <button onClick={handleSave} disabled={saving}
-            className="bg-primary-500 text-white text-sm rounded-lg px-4 py-1.5 hover:bg-primary-600 disabled:opacity-50 transition-colors">
-            {saving ? 'Lagrer...' : 'Lagre'}
+        <div className="flex items-center gap-2 shrink-0">
+          {driveMsg && <span className={`text-xs ${driveMsg.startsWith('Feil') ? 'text-red-500' : 'text-green-600'}`}>{driveMsg}</span>}
+          <button onClick={handleDownloadDocx} disabled={exporting}
+            className="text-xs border border-gray-200 rounded-lg px-3 py-1.5 text-gray-600 hover:border-gray-300 hover:text-gray-800 disabled:opacity-50 transition-colors">
+            {exporting ? '...' : '⬇ Last ned'}
           </button>
-        )}
+          <button onClick={handleSaveToDrive} disabled={uploadingDrive}
+            className="text-xs border border-gray-200 rounded-lg px-3 py-1.5 text-gray-600 hover:border-gray-300 hover:text-gray-800 disabled:opacity-50 transition-colors">
+            {uploadingDrive ? '...' : '☁ Lagre til Drive'}
+          </button>
+          {dirty && (
+            <button onClick={handleSave} disabled={saving}
+              className="bg-primary-500 text-white text-xs rounded-lg px-4 py-1.5 hover:bg-primary-600 disabled:opacity-50 transition-colors">
+              {saving ? 'Lagrer...' : 'Lagre'}
+            </button>
+          )}
+        </div>
       </div>
       <div className="flex-1 overflow-hidden px-6 py-4 flex flex-col gap-2">
         {doc.ai_instruction && (

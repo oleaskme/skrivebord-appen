@@ -32,6 +32,7 @@ export default function FolderView() {
   const [selectedInputIds, setSelectedInputIds] = useState([])
   const [aiLoading, setAiLoading] = useState(false)
   const [aiResult, setAiResult] = useState(null)
+  const [search, setSearch] = useState('')
 
   const loadAll = useCallback(async () => {
     const [folderRes, masterRes, inputRes] = await Promise.all([
@@ -146,6 +147,14 @@ export default function FolderView() {
             ← Skrivebord
           </button>
           <span className="text-gray-200">/</span>
+          <input
+            type="text"
+            placeholder="Søk i dokumenter..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="border border-gray-200 rounded-lg px-3 py-1 text-sm w-48 focus:outline-none focus:ring-2 focus:ring-primary-300"
+          />
+          <span className="text-gray-200">/</span>
 
           {editingName ? (
             <input
@@ -197,8 +206,8 @@ export default function FolderView() {
         {/* Venstre panel (35%) */}
         <div className="w-[35%] border-r border-gray-100 overflow-hidden">
           <LeftPanel
-            masterDocs={masterDocs}
-            inputDocs={inputDocs}
+            masterDocs={masterDocs.filter(d => d.name.toLowerCase().includes(search.toLowerCase()))}
+            inputDocs={inputDocs.filter(d => d.title.toLowerCase().includes(search.toLowerCase()))}
             selectedDoc={selectedDoc}
             onSelectDoc={setSelectedDoc}
             onAddMaster={() => setShowNewMaster(true)}
