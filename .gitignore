@@ -5,3 +5,4 @@ dist/
 .vercel
 *.docx
 *.pdf
+.DS_Store
