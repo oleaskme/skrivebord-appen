@@ -139,6 +139,11 @@ export default function Desktop() {
           onCreate={handleCreateFolder}
         />
       )}
+
+      {/* Versjonsinformasjon */}
+      <div className="fixed bottom-3 left-4 text-xs text-gray-300 select-none">
+        {__COMMIT__} · {new Date(__BUILD_TIME__).toLocaleString('nb-NO', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+      </div>
     </div>
   )
 }
