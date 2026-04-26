@@ -2,37 +2,17 @@ import { useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { formatVersion } from '../../lib/hash'
 
-// Parser ⟨+tillegg+⟩ og ⟨-sletting-⟩ markører fra Claude
-function parseDiff(content) {
-  const parts = []
-  const regex = /⟨\+([\s\S]*?)\+⟩|⟨-([\s\S]*?)-⟩/g
-  let lastIndex = 0
-  let match
-
-  while ((match = regex.exec(content)) !== null) {
-    if (match.index > lastIndex) {
-      parts.push({ type: 'normal', text: content.slice(lastIndex, match.index) })
-    }
-    if (match[1] !== undefined) parts.push({ type: 'add', text: match[1] })
-    else parts.push({ type: 'del', text: match[2] })
-    lastIndex = match.index + match[0].length
-  }
-  if (lastIndex < content.length) {
-    parts.push({ type: 'normal', text: content.slice(lastIndex) })
-  }
-  return parts
-}
-
 function DiffView({ content }) {
-  const parts = parseDiff(content)
+  // Erstatt diff-markører med fargede HTML-elementer, bevar HTML-struktur
+  const html = content
+    .replace(/⟨\+([\s\S]*?)\+⟩/g, '<mark style="background:#dcfce7;color:#166534;border-radius:3px;padding:0 2px">$1</mark>')
+    .replace(/⟨-([\s\S]*?)-⟩/g, '<del style="background:#fee2e2;color:#991b1b;border-radius:3px;padding:0 2px;text-decoration:line-through">$1</del>')
+
   return (
-    <pre className="text-sm leading-relaxed whitespace-pre-wrap font-sans p-4 bg-gray-50 rounded-lg overflow-y-auto h-full">
-      {parts.map((p, i) => {
-        if (p.type === 'add') return <mark key={i} className="bg-green-100 text-green-800 rounded px-0.5">{p.text}</mark>
-        if (p.type === 'del') return <del key={i} className="bg-red-100 text-red-700 rounded px-0.5">{p.text}</del>
-        return <span key={i}>{p.text}</span>
-      })}
-    </pre>
+    <div
+      className="prose prose-sm max-w-none p-4 bg-gray-50 overflow-y-auto h-full"
+      dangerouslySetInnerHTML={{ __html: html }}
+    />
   )
 }
 

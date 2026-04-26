@@ -76,6 +76,11 @@ export default function FolderView() {
     setSelectedDoc({ type: 'master', id: doc.id })
   }
 
+  function handleMasterAIResult(aiResult, inputIds) {
+    setSelectedInputIds(inputIds)
+    setAiResult(aiResult)
+  }
+
   function handleInputCreated(doc) {
     setInputDocs(prev => [doc, ...prev])
     setSelectedDoc({ type: 'input', id: doc.id })
@@ -236,8 +241,10 @@ export default function FolderView() {
       {showNewMaster && (
         <NewMasterModal
           folderId={folderId}
+          inputDocs={inputDocs}
           onClose={() => setShowNewMaster(false)}
           onCreated={handleMasterCreated}
+          onAIResult={handleMasterAIResult}
         />
       )}
 
