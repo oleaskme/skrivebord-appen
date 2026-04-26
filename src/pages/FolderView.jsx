@@ -218,6 +218,8 @@ export default function FolderView() {
             masterDocs={masterDocs}
             inputDocs={inputDocs}
             onMasterSaved={handleMasterSaved}
+            folderId={folderId}
+            folderName={folder.name}
           />
         </div>
       </div>
