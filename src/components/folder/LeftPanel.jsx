@@ -30,59 +30,83 @@ export default function LeftPanel({
 
   function toggleSelectMode() {
     setSelectMode(m => !m)
-    // Nullstill valg når select-modus slås av
     if (selectMode) filteredInputs.forEach(d => selectedInputIds.includes(d.id) && onToggleInput(d.id))
   }
 
   const canRunAI = selectedDoc?.type === 'master' && selectedInputIds.length > 0
 
   return (
-    <div className="h-full flex flex-col overflow-hidden">
-      {/* MASTER-dokumenter */}
+    <div className="h-full flex flex-col overflow-hidden bg-slate-100">
+
+      {/* ── MASTER-seksjon ── */}
       <div className="shrink-0">
-        <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-100">
-          <span className="text-xs font-bold text-gray-500 uppercase tracking-wide">MASTER</span>
-          <button onClick={onAddMaster} className="text-xs text-primary-500 hover:text-primary-700 font-medium">
+        {/* Seksjonshode */}
+        <div className="flex items-center justify-between px-4 py-2.5 bg-primary-700">
+          <span className="text-xs font-bold text-primary-100 uppercase tracking-widest">Master</span>
+          <button
+            onClick={onAddMaster}
+            className="text-xs font-semibold text-white bg-primary-500 hover:bg-primary-400 px-2.5 py-1 rounded-lg transition-colors"
+          >
             + Nytt
           </button>
         </div>
-        <div className="divide-y divide-gray-50">
+
+        {/* Master-liste */}
+        <div className="px-3 py-2 space-y-1.5">
           {masterDocs.length === 0 ? (
-            <p className="px-4 py-4 text-xs text-gray-400 text-center">Ingen MASTER-dokumenter</p>
-          ) : masterDocs.map(doc => (
-            <button
-              key={doc.id}
-              onClick={() => onSelectDoc({ type: 'master', id: doc.id })}
-              className={`w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors ${selectedDoc?.id === doc.id && selectedDoc?.type === 'master' ? 'bg-primary-50 border-l-2 border-l-primary-400' : ''}`}
-            >
-              <div className="flex items-center justify-between">
-                <span className="font-medium text-sm text-gray-800 truncate">{doc.name}</span>
-                <span className="text-xs text-gray-400 ml-2 shrink-0 font-mono">
-                  v{formatVersion(doc.version_major, doc.version_minor)}
-                </span>
-              </div>
-              {doc.has_unresolved_track_changes && (
-                <span className="text-xs text-orange-500 mt-0.5 block">⚠ Sporede endringer</span>
-              )}
-            </button>
-          ))}
+            <p className="py-3 text-xs text-slate-400 text-center">Ingen MASTER-dokumenter ennå</p>
+          ) : masterDocs.map(doc => {
+            const active = selectedDoc?.id === doc.id && selectedDoc?.type === 'master'
+            return (
+              <button
+                key={doc.id}
+                onClick={() => onSelectDoc({ type: 'master', id: doc.id })}
+                className={`w-full text-left px-3 py-2.5 rounded-lg border transition-all ${
+                  active
+                    ? 'bg-white border-primary-300 shadow-sm ring-1 ring-primary-200'
+                    : 'bg-white border-transparent hover:border-slate-200 hover:shadow-sm'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className={`font-semibold text-sm truncate ${active ? 'text-primary-700' : 'text-gray-800'}`}>
+                    {doc.name}
+                  </span>
+                  <span className="text-xs text-slate-400 shrink-0 font-mono bg-slate-100 px-1.5 py-0.5 rounded">
+                    v{formatVersion(doc.version_major, doc.version_minor)}
+                  </span>
+                </div>
+                {doc.has_unresolved_track_changes && (
+                  <span className="text-xs text-orange-500 mt-1 block">⚠ Sporede endringer</span>
+                )}
+              </button>
+            )
+          })}
         </div>
       </div>
 
-      <div className="border-t border-gray-200 shrink-0" />
+      {/* ── Skillelinje ── */}
+      <div className="mx-3 border-t border-slate-300" />
 
-      {/* INPUT-dokumenter */}
+      {/* ── INPUT-seksjon ── */}
       <div className="flex flex-col flex-1 overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-100 shrink-0">
-          <span className="text-xs font-bold text-gray-500 uppercase tracking-wide">INPUT</span>
+        {/* Seksjonshode */}
+        <div className="flex items-center justify-between px-4 py-2.5 bg-slate-600 shrink-0">
+          <span className="text-xs font-bold text-slate-200 uppercase tracking-widest">Input</span>
           <div className="flex items-center gap-2">
             <button
               onClick={toggleSelectMode}
-              className={`text-xs font-medium px-2 py-0.5 rounded transition-colors ${selectMode ? 'bg-primary-100 text-primary-700' : 'text-gray-400 hover:text-gray-600'}`}
+              className={`text-xs font-semibold px-2.5 py-1 rounded-lg transition-colors ${
+                selectMode
+                  ? 'bg-orange-500 text-white hover:bg-orange-400'
+                  : 'bg-slate-500 text-slate-200 hover:bg-slate-400'
+              }`}
             >
-              {selectMode ? 'Avbryt valg' : 'Velg'}
+              {selectMode ? 'Avbryt' : 'Velg'}
             </button>
-            <button onClick={onAddInput} className="text-xs text-primary-500 hover:text-primary-700 font-medium">
+            <button
+              onClick={onAddInput}
+              className="text-xs font-semibold text-white bg-slate-500 hover:bg-slate-400 px-2.5 py-1 rounded-lg transition-colors"
+            >
               + Legg til
             </button>
           </div>
@@ -90,18 +114,18 @@ export default function LeftPanel({
 
         {/* Kjør AI-knapp */}
         {selectMode && (
-          <div className="px-4 py-2 bg-primary-50 border-b border-primary-100 shrink-0">
+          <div className="px-3 py-2 bg-primary-50 border-b border-primary-100 shrink-0">
             {!canRunAI ? (
-              <p className="text-xs text-primary-400">
+              <p className="text-xs text-primary-400 text-center">
                 {selectedDoc?.type !== 'master'
-                  ? 'Velg et MASTER-dokument og kryss av INPUT-dokumenter'
+                  ? 'Velg et MASTER-dokument først, kryss av INPUT'
                   : 'Kryss av minst ett INPUT-dokument'}
               </p>
             ) : (
               <button
                 onClick={onRunAI}
                 disabled={aiLoading}
-                className="w-full bg-primary-500 text-white rounded-lg py-2 text-sm font-medium hover:bg-primary-600 disabled:opacity-60 transition-colors"
+                className="w-full bg-primary-600 text-white rounded-lg py-2 text-sm font-semibold hover:bg-primary-700 disabled:opacity-60 transition-colors"
               >
                 {aiLoading ? '⏳ Kjører AI...' : `🤖 Kjør AI (${selectedInputIds.length} dok.)`}
               </button>
@@ -109,34 +133,46 @@ export default function LeftPanel({
           </div>
         )}
 
-        {/* Filter */}
-        <div className="flex border-b border-gray-100 shrink-0">
+        {/* Filter-faner */}
+        <div className="flex bg-slate-200 shrink-0 px-3 pt-2 gap-1">
           {INPUT_FILTERS.map(f => (
             <button
               key={f}
               onClick={() => setInputFilter(f)}
-              className={`flex-1 py-1.5 text-xs font-medium capitalize transition-colors ${inputFilter === f ? 'text-primary-600 border-b-2 border-primary-400' : 'text-gray-400 hover:text-gray-600'}`}
+              className={`flex-1 py-1.5 text-xs font-semibold rounded-t-lg capitalize transition-colors ${
+                inputFilter === f
+                  ? 'bg-white text-primary-600'
+                  : 'text-slate-500 hover:text-slate-700'
+              }`}
             >
               {f}
             </button>
           ))}
         </div>
 
-        <div className="flex-1 overflow-y-auto divide-y divide-gray-50">
+        {/* INPUT-liste */}
+        <div className="flex-1 overflow-y-auto px-3 py-2 space-y-1.5 bg-slate-50">
           {filteredInputs.length === 0 ? (
-            <p className="px-4 py-6 text-xs text-gray-400 text-center">
+            <p className="py-6 text-xs text-slate-400 text-center">
               {inputFilter === 'alle' ? 'Ingen INPUT-dokumenter ennå' : `Ingen ${inputFilter} dokumenter`}
             </p>
           ) : filteredInputs.map(doc => {
-            const typeInfo = TYPE_LABELS[doc.type] ?? { label: doc.type, color: 'bg-gray-100 text-gray-600' }
+            const typeInfo  = TYPE_LABELS[doc.type] ?? { label: doc.type, color: 'bg-gray-100 text-gray-600' }
             const isSelected = selectedInputIds.includes(doc.id)
+            const active    = !selectMode && selectedDoc?.id === doc.id && selectedDoc?.type === 'input'
             return (
               <div
                 key={doc.id}
                 onClick={() => selectMode ? onToggleInput(doc.id) : onSelectDoc({ type: 'input', id: doc.id })}
-                className={`group relative px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors ${!selectMode && selectedDoc?.id === doc.id && selectedDoc?.type === 'input' ? 'bg-primary-50 border-l-2 border-l-primary-400' : ''} ${selectMode && isSelected ? 'bg-primary-50' : ''}`}
+                className={`group relative px-3 py-2.5 rounded-lg border cursor-pointer transition-all ${
+                  active
+                    ? 'bg-white border-primary-300 shadow-sm ring-1 ring-primary-200'
+                    : isSelected
+                      ? 'bg-primary-50 border-primary-200'
+                      : 'bg-white border-transparent hover:border-slate-200 hover:shadow-sm'
+                }`}
               >
-                <div className="flex items-start gap-3">
+                <div className="flex items-start gap-2.5">
                   {selectMode && (
                     <input
                       type="checkbox"
@@ -147,23 +183,29 @@ export default function LeftPanel({
                     />
                   )}
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-800 truncate">{doc.title}</p>
-                    <div className="flex items-center gap-2 mt-1">
+                    <p className={`text-sm font-medium truncate ${active ? 'text-primary-700' : 'text-gray-800'}`}>
+                      {doc.title}
+                    </p>
+                    <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                       <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${typeInfo.color}`}>
                         {typeInfo.label}
                       </span>
-                      <span className={`text-xs px-1.5 py-0.5 rounded ${doc.status === 'processed' ? 'bg-green-50 text-green-600' : 'bg-orange-50 text-orange-600'}`}>
+                      <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${
+                        doc.status === 'processed'
+                          ? 'bg-green-100 text-green-700'
+                          : 'bg-orange-100 text-orange-700'
+                      }`}>
                         {doc.status === 'processed' ? 'Behandlet' : 'Ubehandlet'}
                       </span>
                     </div>
-                    <p className="text-xs text-gray-400 mt-1">
+                    <p className="text-xs text-slate-400 mt-1">
                       {new Date(doc.created_at).toLocaleDateString('nb-NO')}
                     </p>
                   </div>
                   {!selectMode && (
                     <button
                       onClick={e => { e.stopPropagation(); onDeleteInput(doc.id) }}
-                      className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-400 text-xs transition-opacity shrink-0 mt-0.5"
+                      className="opacity-0 group-hover:opacity-100 text-slate-300 hover:text-red-400 text-xs transition-opacity shrink-0 mt-0.5 p-1"
                     >
                       ✕
                     </button>

@@ -138,23 +138,23 @@ export default function FolderView() {
   return (
     <div className="h-screen flex flex-col overflow-hidden">
       {/* Toppfelt */}
-      <div className="h-14 bg-white border-b border-gray-100 flex items-center justify-between px-6 shrink-0 gap-4">
+      <div className="h-14 bg-primary-800 flex items-center justify-between px-6 shrink-0 gap-4">
         <div className="flex items-center gap-3 min-w-0">
           <button
             onClick={() => navigate('/')}
-            className="text-gray-400 hover:text-primary-500 text-sm shrink-0 transition-colors"
+            className="text-primary-200 hover:text-white text-sm shrink-0 transition-colors font-medium"
           >
             ← Skrivebord
           </button>
-          <span className="text-gray-200">/</span>
+          <span className="text-primary-500">/</span>
           <input
             type="text"
             placeholder="Søk i dokumenter..."
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="border border-gray-200 rounded-lg px-3 py-1 text-sm w-48 focus:outline-none focus:ring-2 focus:ring-primary-300"
+            className="bg-primary-700 border border-primary-600 text-white placeholder-primary-300 rounded-lg px-3 py-1 text-sm w-48 focus:outline-none focus:ring-2 focus:ring-primary-400"
           />
-          <span className="text-gray-200">/</span>
+          <span className="text-primary-500">/</span>
 
           {editingName ? (
             <input
@@ -163,12 +163,12 @@ export default function FolderView() {
               onChange={e => setNameInput(e.target.value)}
               onBlur={handleRename}
               onKeyDown={e => { if (e.key === 'Enter') handleRename(); if (e.key === 'Escape') setEditingName(false) }}
-              className="font-semibold text-gray-800 border-b-2 border-primary-400 focus:outline-none bg-transparent min-w-0 w-64"
+              className="font-bold text-white border-b-2 border-primary-400 focus:outline-none bg-transparent min-w-0 w-64"
             />
           ) : (
             <button
               onClick={() => setEditingName(true)}
-              className="font-semibold text-gray-800 hover:text-primary-600 truncate transition-colors"
+              className="font-bold text-white hover:text-primary-200 truncate transition-colors"
               title="Klikk for å endre navn"
             >
               {folder.name}
@@ -180,7 +180,7 @@ export default function FolderView() {
         <div className="relative shrink-0">
           <button
             onClick={() => setShowStatusMenu(o => !o)}
-            className="flex items-center gap-1.5 text-sm text-gray-500 border border-gray-200 rounded-lg px-3 py-1.5 hover:border-gray-300 transition-colors"
+            className="flex items-center gap-1.5 text-sm text-primary-100 border border-primary-600 rounded-lg px-3 py-1.5 hover:border-primary-400 hover:text-white transition-colors"
           >
             <span className={`w-2 h-2 rounded-full ${folder.status === 'active' ? 'bg-green-400' : folder.status === 'on_hold' ? 'bg-yellow-400' : 'bg-gray-400'}`} />
             {currentStatus.label}
@@ -204,7 +204,7 @@ export default function FolderView() {
       {/* Innhold */}
       <div className="flex-1 flex overflow-hidden">
         {/* Venstre panel (35%) */}
-        <div className="w-[35%] border-r border-gray-100 overflow-hidden">
+        <div className="w-[35%] overflow-hidden">
           <LeftPanel
             masterDocs={masterDocs.filter(d => d.name.toLowerCase().includes(search.toLowerCase()))}
             inputDocs={inputDocs.filter(d => d.title.toLowerCase().includes(search.toLowerCase()))}

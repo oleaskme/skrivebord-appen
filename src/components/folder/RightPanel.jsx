@@ -233,14 +233,18 @@ export default function RightPanel({ selectedDoc, masterDocs, inputDocs, onMaste
   }
 
   return (
-    <div className="h-full flex flex-col overflow-hidden">
+    <div className="h-full flex flex-col overflow-hidden bg-white">
       {/* Fane-bar */}
-      <div className="flex border-b border-gray-100 shrink-0 bg-white">
+      <div className="flex shrink-0 bg-slate-700 px-2 pt-2 gap-1">
         {TABS.map(tab => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`flex-1 py-3 text-sm font-medium transition-colors ${activeTab === tab.id ? 'text-primary-600 border-b-2 border-primary-500' : 'text-gray-400 hover:text-gray-600'}`}
+            className={`px-5 py-2 text-sm font-semibold rounded-t-lg transition-colors ${
+              activeTab === tab.id
+                ? 'bg-white text-primary-700'
+                : 'text-slate-300 hover:text-white hover:bg-slate-600'
+            }`}
           >
             {tab.label}
           </button>
