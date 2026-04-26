@@ -3,6 +3,45 @@ import { supabase } from '../_lib/supabase.js'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
+// Konverterer markdown eller ren tekst til HTML — brukes som fallback hvis AI ignorerer HTML-kravet
+function normalizeToHtml(text) {
+  if (!text) return ''
+  if (text.trimStart().startsWith('<')) return text
+
+  const inline = str => str
+    .replace(/\*\*\*(.*?)\*\*\*/g, '<strong><em>$1</em></strong>')
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/__(.*?)__/g,    '<strong>$1</strong>')
+    .replace(/\*(.*?)\*/g,    '<em>$1</em>')
+    .replace(/_(.*?)_/g,      '<em>$1</em>')
+    .replace(/`(.*?)`/g,      '<code>$1</code>')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+
+  const out = []
+  const listStack = []
+  const closeLists = () => { while (listStack.length) out.push(`</${listStack.pop()}>`) }
+
+  for (const raw of text.split('\n')) {
+    const line = raw.trim()
+    if (line.startsWith('### '))     { closeLists(); out.push(`<h3>${inline(line.slice(4))}</h3>`) }
+    else if (line.startsWith('## ')) { closeLists(); out.push(`<h2>${inline(line.slice(3))}</h2>`) }
+    else if (line.startsWith('# '))  { closeLists(); out.push(`<h1>${inline(line.slice(2))}</h1>`) }
+    else if (/^[-*]\s/.test(line)) {
+      if (listStack.at(-1) !== 'ul') { closeLists(); out.push('<ul>'); listStack.push('ul') }
+      out.push(`<li>${inline(line.slice(2))}</li>`)
+    }
+    else if (/^\d+\.\s/.test(line)) {
+      if (listStack.at(-1) !== 'ol') { closeLists(); out.push('<ol>'); listStack.push('ol') }
+      out.push(`<li>${inline(line.replace(/^\d+\.\s/, ''))}</li>`)
+    }
+    else if (/^[-*_]{3,}$/.test(line)) { closeLists(); out.push('<hr>') }
+    else if (line === '')               { closeLists() }
+    else                                { closeLists(); out.push(`<p>${inline(line)}</p>`) }
+  }
+  closeLists()
+  return out.join('')
+}
+
 const SYSTEM_PROMPT = `Du er en AI-assistent som oppdaterer MASTER-dokumenter basert på ny informasjon fra INPUT-dokumenter.
 
 Regler:
@@ -95,6 +134,9 @@ Oppdater MASTER-dokumentet basert på INPUT-dokumentene og returner JSON.`
       if (!match) throw new Error('Claude returnerte ikke gyldig JSON')
       result = JSON.parse(match[0])
     }
+
+    // Normaliser til HTML (fallback dersom AI returnerte markdown)
+    result.updated_content = normalizeToHtml(result.updated_content)
 
     // Logg AI-kjøringen i databasen
     await supabase.from('ai_runs').insert({

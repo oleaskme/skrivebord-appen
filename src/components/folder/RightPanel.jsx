@@ -6,6 +6,7 @@ import TasksPanel from './TasksPanel'
 import MeetingsPanel from './MeetingsPanel'
 import RisksPanel from './RisksPanel'
 import RichTextEditor from '../RichTextEditor'
+import { normalizeToHtml } from '../../lib/normalizeHtml'
 
 const TABS = [
   { id: 'doc',      label: 'Dokument' },
@@ -25,12 +26,7 @@ function splitContent(raw) {
   }
 }
 
-function plainToHtml(text) {
-  if (!text || text.trimStart().startsWith('<')) return text ?? ''
-  return text.split('\n').map(line =>
-    line.trim() === '' ? '<p></p>' : `<p>${line.trim()}</p>`
-  ).join('')
-}
+const plainToHtml = normalizeToHtml
 
 // ---- MASTER-visning ----
 function MasterViewer({ doc, onSaved }) {
