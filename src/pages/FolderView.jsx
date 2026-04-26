@@ -5,6 +5,7 @@ import LeftPanel from '../components/folder/LeftPanel'
 import RightPanel from '../components/folder/RightPanel'
 import NewMasterModal from '../components/folder/NewMasterModal'
 import NewInputModal from '../components/folder/NewInputModal'
+import AIReviewModal from '../components/folder/AIReviewModal'
 
 const STATUS_OPTIONS = [
   { value: 'active',   label: 'Aktiv' },
@@ -28,6 +29,9 @@ export default function FolderView() {
 
   const [showNewMaster, setShowNewMaster] = useState(false)
   const [showNewInput, setShowNewInput] = useState(false)
+  const [selectedInputIds, setSelectedInputIds] = useState([])
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiResult, setAiResult] = useState(null)
 
   const loadAll = useCallback(async () => {
     const [folderRes, masterRes, inputRes] = await Promise.all([
@@ -77,6 +81,41 @@ export default function FolderView() {
   }
 
   function handleMasterSaved() {
+    loadAll()
+  }
+
+  function handleToggleInput(inputId) {
+    setSelectedInputIds(prev =>
+      prev.includes(inputId) ? prev.filter(id => id !== inputId) : [...prev, inputId]
+    )
+  }
+
+  async function handleRunAI() {
+    if (!selectedDoc || selectedDoc.type !== 'master' || selectedInputIds.length === 0) return
+    setAiLoading(true)
+    try {
+      const res = await fetch('/api/ai/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          folderId,
+          masterDocId: selectedDoc.id,
+          inputDocIds: selectedInputIds,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setAiResult(data)
+    } catch (err) {
+      alert('AI-kjøring feilet: ' + err.message)
+    } finally {
+      setAiLoading(false)
+    }
+  }
+
+  function handleAIApproved() {
+    setAiResult(null)
+    setSelectedInputIds([])
     loadAll()
   }
 
@@ -165,6 +204,10 @@ export default function FolderView() {
             onAddMaster={() => setShowNewMaster(true)}
             onAddInput={() => setShowNewInput(true)}
             onDeleteInput={handleDeleteInput}
+            selectedInputIds={selectedInputIds}
+            onToggleInput={handleToggleInput}
+            onRunAI={handleRunAI}
+            aiLoading={aiLoading}
           />
         </div>
 
@@ -192,6 +235,18 @@ export default function FolderView() {
           folderId={folderId}
           onClose={() => setShowNewInput(false)}
           onCreated={handleInputCreated}
+        />
+      )}
+
+      {aiResult && (
+        <AIReviewModal
+          result={aiResult}
+          master={masterDocs.find(d => d.id === selectedDoc.id)}
+          inputDocs={inputDocs}
+          selectedInputIds={selectedInputIds}
+          folderId={folderId}
+          onClose={() => setAiResult(null)}
+          onApproved={handleAIApproved}
         />
       )}
     </div>
