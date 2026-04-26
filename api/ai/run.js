@@ -51,15 +51,16 @@ Regler:
 4. Foreslå konkrete oppgaver og risikoer som følger av innholdet
 5. Returner alltid gyldig JSON uten markdown-blokker rundt
 
-FORMAT-KRAV for updated_content:
-- Skriv gyldig HTML tilpasset Word-eksport og nettleservisning
-- Bruk <h1> for dokumenttittel, <h2> for seksjoner, <h3> for underseksjoner
-- Bruk <p> for avsnitt, <strong> for fet, <em> for kursiv, <ul>/<li> for punktlister, <ol>/<li> for nummererte lister
+FORMAT-KRAV for updated_content — følg stilguide kravspesifikasjon_v03:
+- Skriv gyldig HTML. Font er Arial i Word-eksporten.
+- Dokumentstruktur: <h1> for tittel/hoveddokumentnavn, <h2> for seksjoner, <h3> for underseksjoner
+- Brødtekst: <p>. Fet: <strong>. Kursiv: <em>. Punktlister: <ul>/<li>. Nummererte: <ol>/<li>.
 - Diff-markørene plasseres KUN inne i HTML-elementer:
     Riktig: <p>Status er ⟨+oppdatert til grønn+⟩.</p>
     Galt:   ⟨+<p>Ny seksjon</p>+⟩
 - Ikke inkluder endringslogg i updated_content — det går i changelog_entry
 - Dersom gjeldende innhold er tomt, bygg hele dokumentstrukturen fra bunnen
+- Bruk norsk tegnsetting og typografiske anførselstegn («»)
 
 JSON-format:
 {
