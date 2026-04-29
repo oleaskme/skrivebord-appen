@@ -30,9 +30,11 @@ export default function FolderView() {
   const [showNewMaster, setShowNewMaster] = useState(false)
   const [showNewInput, setShowNewInput] = useState(false)
   const [selectedInputIds, setSelectedInputIds] = useState([])
+  const [selectedMasterIds, setSelectedMasterIds] = useState([])
   const [aiLoading, setAiLoading] = useState(false)
   const [aiResult, setAiResult] = useState(null)
   const [pendingAIRuns, setPendingAIRuns] = useState([])
+  const [currentAIMasterId, setCurrentAIMasterId] = useState(null)
   const [search, setSearch] = useState('')
 
   const loadAll = useCallback(async () => {
@@ -107,28 +109,6 @@ export default function FolderView() {
     }
   }
 
-  async function runNextPendingAI() {
-    if (pendingAIRuns.length === 0) return
-    const [next, ...remaining] = pendingAIRuns
-    setPendingAIRuns(remaining)
-    setAiLoading(true)
-    try {
-      const res = await fetch('/api/ai/run', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ folderId, ...next }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error)
-      setSelectedDoc({ type: 'master', id: next.masterDocId })
-      setSelectedInputIds(next.inputDocIds)
-      setAiResult(data)
-    } catch (err) {
-      alert('AI-kjøring feilet: ' + err.message)
-    } finally {
-      setAiLoading(false)
-    }
-  }
 
   function handleMasterSaved() {
     loadAll()
@@ -140,21 +120,24 @@ export default function FolderView() {
     )
   }
 
-  async function handleRunAI() {
-    if (!selectedDoc || selectedDoc.type !== 'master' || selectedInputIds.length === 0) return
+  function handleToggleMaster(masterId) {
+    setSelectedMasterIds(prev =>
+      prev.includes(masterId) ? prev.filter(id => id !== masterId) : [...prev, masterId]
+    )
+  }
+
+  async function runAIForMaster(masterDocId, inputDocIds) {
     setAiLoading(true)
+    setCurrentAIMasterId(masterDocId)
     try {
       const res = await fetch('/api/ai/run', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          folderId,
-          masterDocId: selectedDoc.id,
-          inputDocIds: selectedInputIds,
-        }),
+        body: JSON.stringify({ folderId, masterDocId, inputDocIds }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
+      setSelectedDoc({ type: 'master', id: masterDocId })
       setAiResult(data)
     } catch (err) {
       alert('AI-kjøring feilet: ' + err.message)
@@ -163,11 +146,25 @@ export default function FolderView() {
     }
   }
 
+  async function handleRunAI() {
+    if (selectedMasterIds.length === 0 || selectedInputIds.length === 0) return
+    const [firstId, ...rest] = selectedMasterIds
+    setPendingAIRuns(rest.map(id => ({ masterDocId: id, inputDocIds: selectedInputIds })))
+    await runAIForMaster(firstId, selectedInputIds)
+  }
+
   async function handleAIApproved() {
     setAiResult(null)
-    setSelectedInputIds([])
     await loadAll()
-    if (pendingAIRuns.length > 0) runNextPendingAI()
+    if (pendingAIRuns.length > 0) {
+      const [next, ...remaining] = pendingAIRuns
+      setPendingAIRuns(remaining)
+      await runAIForMaster(next.masterDocId, next.inputDocIds)
+    } else {
+      setSelectedInputIds([])
+      setSelectedMasterIds([])
+      setCurrentAIMasterId(null)
+    }
   }
 
   if (loading) {
@@ -265,6 +262,8 @@ export default function FolderView() {
             onDeleteInput={handleDeleteInput}
             selectedInputIds={selectedInputIds}
             onToggleInput={handleToggleInput}
+            selectedMasterIds={selectedMasterIds}
+            onToggleMaster={handleToggleMaster}
             onRunAI={handleRunAI}
             aiLoading={aiLoading}
           />
@@ -305,11 +304,11 @@ export default function FolderView() {
       {aiResult && (
         <AIReviewModal
           result={aiResult}
-          master={masterDocs.find(d => d.id === selectedDoc.id)}
+          master={masterDocs.find(d => d.id === currentAIMasterId)}
           inputDocs={inputDocs}
           selectedInputIds={selectedInputIds}
           folderId={folderId}
-          onClose={() => setAiResult(null)}
+          onClose={() => { setAiResult(null); setSelectedInputIds([]); setSelectedMasterIds([]); setCurrentAIMasterId(null); setPendingAIRuns([]) }}
           onApproved={handleAIApproved}
         />
       )}

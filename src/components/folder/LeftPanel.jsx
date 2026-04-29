@@ -17,6 +17,7 @@ export default function LeftPanel({
   onAddMaster, onAddInput,
   onDeleteInput,
   selectedInputIds, onToggleInput,
+  selectedMasterIds, onToggleMaster,
   onRunAI, aiLoading,
 }) {
   const [inputFilter, setInputFilter] = useState('alle')
@@ -29,18 +30,21 @@ export default function LeftPanel({
   })
 
   function toggleSelectMode() {
+    if (selectMode) {
+      // Clear selections on exit
+      selectedInputIds.forEach(id => onToggleInput(id))
+      selectedMasterIds.forEach(id => onToggleMaster(id))
+    }
     setSelectMode(m => !m)
-    if (selectMode) filteredInputs.forEach(d => selectedInputIds.includes(d.id) && onToggleInput(d.id))
   }
 
-  const canRunAI = selectedDoc?.type === 'master' && selectedInputIds.length > 0
+  const canRunAI = selectedMasterIds.length > 0 && selectedInputIds.length > 0
 
   return (
     <div className="h-full flex flex-col overflow-hidden bg-slate-100">
 
       {/* ── MASTER-seksjon ── */}
       <div className="shrink-0">
-        {/* Seksjonshode */}
         <div className="flex items-center justify-between px-4 py-2.5 bg-primary-700">
           <span className="text-xs font-bold text-primary-100 uppercase tracking-widest">Master</span>
           <button
@@ -51,34 +55,47 @@ export default function LeftPanel({
           </button>
         </div>
 
-        {/* Master-liste */}
         <div className="px-3 py-2 space-y-1.5">
           {masterDocs.length === 0 ? (
             <p className="py-3 text-xs text-slate-400 text-center">Ingen MASTER-dokumenter ennå</p>
           ) : masterDocs.map(doc => {
-            const active = selectedDoc?.id === doc.id && selectedDoc?.type === 'master'
+            const isSelected = selectedMasterIds.includes(doc.id)
+            const active = !selectMode && selectedDoc?.id === doc.id && selectedDoc?.type === 'master'
             return (
-              <button
+              <div
                 key={doc.id}
-                onClick={() => onSelectDoc({ type: 'master', id: doc.id })}
-                className={`w-full text-left px-3 py-2.5 rounded-lg border transition-all ${
-                  active
-                    ? 'bg-white border-primary-300 shadow-sm ring-1 ring-primary-200'
-                    : 'bg-white border-transparent hover:border-slate-200 hover:shadow-sm'
+                onClick={() => selectMode ? onToggleMaster(doc.id) : onSelectDoc({ type: 'master', id: doc.id })}
+                className={`w-full text-left px-3 py-2.5 rounded-lg border transition-all cursor-pointer ${
+                  selectMode && isSelected
+                    ? 'bg-primary-50 border-primary-300 ring-1 ring-primary-200'
+                    : active
+                      ? 'bg-white border-primary-300 shadow-sm ring-1 ring-primary-200'
+                      : 'bg-white border-transparent hover:border-slate-200 hover:shadow-sm'
                 }`}
               >
-                <div className="flex items-center justify-between gap-2">
-                  <span className={`font-semibold text-sm truncate ${active ? 'text-primary-700' : 'text-gray-800'}`}>
-                    {doc.name}
-                  </span>
-                  <span className="text-xs text-slate-400 shrink-0 font-mono bg-slate-100 px-1.5 py-0.5 rounded">
-                    v{formatVersion(doc.version_major, doc.version_minor)}
-                  </span>
+                <div className="flex items-center gap-2.5">
+                  {selectMode && (
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => onToggleMaster(doc.id)}
+                      onClick={e => e.stopPropagation()}
+                      className="w-4 h-4 accent-primary-500 shrink-0"
+                    />
+                  )}
+                  <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
+                    <span className={`font-semibold text-sm truncate ${active ? 'text-primary-700' : isSelected ? 'text-primary-700' : 'text-gray-800'}`}>
+                      {doc.name}
+                    </span>
+                    <span className="text-xs text-slate-400 shrink-0 font-mono bg-slate-100 px-1.5 py-0.5 rounded">
+                      v{formatVersion(doc.version_major, doc.version_minor)}
+                    </span>
+                  </div>
                 </div>
                 {doc.has_unresolved_track_changes && (
-                  <span className="text-xs text-orange-500 mt-1 block">⚠ Sporede endringer</span>
+                  <span className="text-xs text-orange-500 mt-1 block pl-6">⚠ Sporede endringer</span>
                 )}
-              </button>
+              </div>
             )
           })}
         </div>
@@ -89,7 +106,6 @@ export default function LeftPanel({
 
       {/* ── INPUT-seksjon ── */}
       <div className="flex flex-col flex-1 overflow-hidden">
-        {/* Seksjonshode */}
         <div className="flex items-center justify-between px-4 py-2.5 bg-slate-600 shrink-0">
           <span className="text-xs font-bold text-slate-200 uppercase tracking-widest">Input</span>
           <div className="flex items-center gap-2">
@@ -117,9 +133,11 @@ export default function LeftPanel({
           <div className="px-3 py-2 bg-primary-50 border-b border-primary-100 shrink-0">
             {!canRunAI ? (
               <p className="text-xs text-primary-400 text-center">
-                {selectedDoc?.type !== 'master'
-                  ? 'Velg et MASTER-dokument først, kryss av INPUT'
-                  : 'Kryss av minst ett INPUT-dokument'}
+                {selectedMasterIds.length === 0 && selectedInputIds.length === 0
+                  ? 'Kryss av master- og input-dokumenter'
+                  : selectedMasterIds.length === 0
+                    ? 'Kryss av minst ett MASTER-dokument'
+                    : 'Kryss av minst ett INPUT-dokument'}
               </p>
             ) : (
               <button
@@ -127,7 +145,9 @@ export default function LeftPanel({
                 disabled={aiLoading}
                 className="w-full bg-primary-600 text-white rounded-lg py-2 text-sm font-semibold hover:bg-primary-700 disabled:opacity-60 transition-colors"
               >
-                {aiLoading ? '⏳ Kjører AI...' : `🤖 Kjør AI (${selectedInputIds.length} dok.)`}
+                {aiLoading
+                  ? '⏳ Kjører AI...'
+                  : `🤖 Kjør AI (${selectedInputIds.length} input → ${selectedMasterIds.length} master)`}
               </button>
             )}
           </div>
