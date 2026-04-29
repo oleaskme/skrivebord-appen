@@ -6,7 +6,7 @@ import FolderCard from '../components/FolderCard'
 import NewFolderModal from '../components/NewFolderModal'
 import GoogleConnectButton from '../components/GoogleConnectButton'
 import kaiaImg from '../assets/kaia.png'
-import kaiaVideo from '../assets/kaia.mp4'
+import kaiaVideo from '../assets/kaia.mov'
 
 export default function Desktop() {
   const { activeUser, clearUser } = useUser()
