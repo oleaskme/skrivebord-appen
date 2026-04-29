@@ -99,6 +99,60 @@ export default async function handler(req, res) {
 
   const { folderId, masterDocId, inputDocIds, mode, question, history } = req.body
 
+  // ── Rydd og grupper-modus ──
+  if (mode === 'cleanup') {
+    const { itemType } = req.body
+    if (!folderId || !itemType) return res.status(400).json({ error: 'folderId og itemType kreves' })
+    try {
+      let items = []
+      if (itemType === 'tasks') {
+        const { data } = await supabase.from('tasks').select('id, title, status, due_date').eq('folder_id', folderId).neq('status', 'completed')
+        items = data ?? []
+      } else {
+        const { data } = await supabase.from('risks').select('id, title, severity, status').eq('folder_id', folderId).neq('status', 'dismissed')
+        items = data ?? []
+      }
+
+      if (items.length < 2) return res.json({ merges: [], groups: [] })
+
+      const itemList = items.map(it =>
+        itemType === 'tasks'
+          ? `id:${it.id} | "${it.title}"${it.due_date ? ` (frist: ${it.due_date})` : ''}`
+          : `id:${it.id} | "${it.title}" [${it.severity}]`
+      ).join('\n')
+
+      const prompt = `Analyser følgende ${itemType === 'tasks' ? 'oppgaver' : 'risikoer'} fra en prosjektmappe og:
+1. Identifiser dubletter eller nær-like elementer som bør slås sammen
+2. Grupper ALLE elementene i logiske kategorier med norske gruppenavn
+
+Liste:
+${itemList}
+
+Returner gyldig JSON uten markdown:
+{
+  "merges": [{ "ids": ["<id1>","<id2>"], "suggestedTitle": "...", "reason": "..." }],
+  "groups": [{ "name": "Gruppenavn", "itemIds": ["<id1>","<id2>"] }]
+}
+
+Alle elementer skal tilhøre én gruppe. Ingen tomme grupper.`
+
+      const response = await anthropic.messages.create({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 2048,
+        messages: [{ role: 'user', content: prompt }],
+      })
+
+      const raw = response.content[0].text.trim()
+      let result
+      try { result = JSON.parse(raw) }
+      catch { const m = raw.match(/\{[\s\S]*\}/); result = m ? JSON.parse(m[0]) : { merges: [], groups: [] } }
+
+      return res.json({ merges: result.merges ?? [], groups: result.groups ?? [] })
+    } catch (err) {
+      return res.status(500).json({ error: err.message })
+    }
+  }
+
   // ── Q&A-modus ──
   if (mode === 'qa') {
     if (!folderId || !question) return res.status(400).json({ error: 'folderId og question kreves' })

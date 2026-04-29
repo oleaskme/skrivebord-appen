@@ -5,13 +5,18 @@ import { useUser } from '../../context/UserContext'
 
 export default function TasksPanel({ folderId, folderName }) {
   const { activeUser } = useUser()
-  const [tasks, setTasks] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [newTitle, setNewTitle] = useState('')
-  const [newDue, setNewDue] = useState('')
-  const [adding, setAdding] = useState(false)
-  const [showForm, setShowForm] = useState(false)
-  const [syncing, setSyncing] = useState(false)
+  const [tasks, setTasks]         = useState([])
+  const [loading, setLoading]     = useState(true)
+  const [newTitle, setNewTitle]   = useState('')
+  const [newDue, setNewDue]       = useState('')
+  const [adding, setAdding]       = useState(false)
+  const [showForm, setShowForm]   = useState(false)
+  const [syncing, setSyncing]     = useState(false)
+  const [sortBy, setSortBy]       = useState('priority')
+  const [cleaning, setCleaning]   = useState(false)
+  const [cleanupResult, setCleanupResult] = useState(null)
+  const [approvedMerges, setApprovedMerges] = useState([])
+  const [applying, setApplying]   = useState(false)
 
   const loadTasks = useCallback(async () => {
     const { data } = await supabase
@@ -26,11 +31,8 @@ export default function TasksPanel({ folderId, folderName }) {
   useEffect(() => { loadTasks() }, [loadTasks])
 
   async function getOrCreateTaskListId() {
-    // Finn eksisterende tasklist-ID fra tasks-tabellen
     const existing = tasks.find(t => t.google_tasklist_id)
     if (existing) return existing.google_tasklist_id
-
-    // Ingen ennå — opprett i Google Tasks
     const { list } = await api.tasks.createList(activeUser.id, folderName)
     return list.id
   }
@@ -42,16 +44,14 @@ export default function TasksPanel({ folderId, folderName }) {
     try {
       let googleTasksId = null
       let googleTasklistId = null
-
       if (activeUser.google_account_email) {
         try {
           const listId = await getOrCreateTaskListId()
           const { task } = await api.tasks.createItem(activeUser.id, listId, newTitle.trim(), newDue || null)
           googleTasksId = task.id
           googleTasklistId = listId
-        } catch { /* Google Tasks utilgjengelig — lagre kun lokalt */ }
+        } catch {}
       }
-
       const { data } = await supabase.from('tasks').insert({
         folder_id: folderId,
         title: newTitle.trim(),
@@ -61,7 +61,6 @@ export default function TasksPanel({ folderId, folderName }) {
         status: 'open',
         ai_suggested: false,
       }).select().single()
-
       setTasks(prev => [...prev, data])
       setNewTitle('')
       setNewDue('')
@@ -74,7 +73,6 @@ export default function TasksPanel({ folderId, folderName }) {
   async function handleToggle(task) {
     const newStatus = task.status === 'completed' ? 'open' : 'completed'
     await supabase.from('tasks').update({ status: newStatus }).eq('id', task.id)
-
     if (task.google_tasks_id && task.google_tasklist_id) {
       try {
         await api.tasks.updateItem(activeUser.id, task.google_tasklist_id, task.google_tasks_id, {
@@ -98,26 +96,18 @@ export default function TasksPanel({ folderId, folderName }) {
     if (!activeUser.google_account_email) return
     setSyncing(true)
     try {
-      // Finn eller opprett en taskliste for denne mappen
       let listId = tasks.find(t => t.google_tasklist_id)?.google_tasklist_id
       if (!listId) {
         const { list } = await api.tasks.createList(activeUser.id, folderName)
         listId = list.id
       }
-
-      // Push alle lokale oppgaver som mangler Google Tasks-ID
       const unsynced = tasks.filter(t => !t.google_tasks_id)
       for (const task of unsynced) {
         try {
           const { task: gTask } = await api.tasks.createItem(activeUser.id, listId, task.title, task.due_date || null)
-          await supabase.from('tasks').update({
-            google_tasks_id: gTask.id,
-            google_tasklist_id: listId,
-          }).eq('id', task.id)
+          await supabase.from('tasks').update({ google_tasks_id: gTask.id, google_tasklist_id: listId }).eq('id', task.id)
         } catch {}
       }
-
-      // Pull statusendringer fra Google Tasks
       const { items } = await api.tasks.getItems(activeUser.id, listId)
       for (const item of items) {
         const local = tasks.find(t => t.google_tasks_id === item.id)
@@ -126,28 +116,155 @@ export default function TasksPanel({ folderId, folderName }) {
           await supabase.from('tasks').update({ status }).eq('id', local.id)
         }
       }
-
       await loadTasks()
     } finally {
       setSyncing(false)
     }
   }
 
+  async function handleCleanup() {
+    setCleaning(true)
+    setCleanupResult(null)
+    try {
+      const res = await fetch('/api/ai/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ folderId, mode: 'cleanup', itemType: 'tasks' }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setCleanupResult(data)
+      setApprovedMerges(data.merges.map((_, i) => i))
+    } catch (err) {
+      alert('Feil: ' + err.message)
+    } finally {
+      setCleaning(false)
+    }
+  }
+
+  async function applyCleanup() {
+    if (!cleanupResult) return
+    setApplying(true)
+    try {
+      for (const group of cleanupResult.groups) {
+        for (const id of group.itemIds) {
+          await supabase.from('tasks').update({ group_name: group.name }).eq('id', id)
+        }
+      }
+      for (const idx of approvedMerges) {
+        const merge = cleanupResult.merges[idx]
+        const [keepId, ...deleteIds] = merge.ids
+        await supabase.from('tasks').update({ title: merge.suggestedTitle }).eq('id', keepId)
+        if (deleteIds.length) await supabase.from('tasks').delete().in('id', deleteIds)
+      }
+      setCleanupResult(null)
+      setSortBy('group')
+      await loadTasks()
+    } finally {
+      setApplying(false)
+    }
+  }
+
   const open      = tasks.filter(t => t.status === 'open')
-  const proposed  = tasks.filter(t => t.ai_suggested && t.status === 'open')
   const completed = tasks.filter(t => t.status === 'completed')
+
+  function sortOpen(items) {
+    return [...items].sort((a, b) => {
+      if (a.due_date && b.due_date) return new Date(a.due_date) - new Date(b.due_date)
+      if (a.due_date) return -1
+      if (b.due_date) return 1
+      return 0
+    })
+  }
+
+  function renderByPriority() {
+    return (
+      <>
+        {open.length > 0 && (
+          <div>
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Åpne ({open.length})</p>
+            <div className="space-y-2">
+              {sortOpen(open).map(t => <TaskItem key={t.id} task={t} onToggle={handleToggle} onDelete={handleDelete} />)}
+            </div>
+          </div>
+        )}
+        {completed.length > 0 && (
+          <div>
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Fullført ({completed.length})</p>
+            <div className="space-y-2">
+              {completed.map(t => <TaskItem key={t.id} task={t} onToggle={handleToggle} onDelete={handleDelete} />)}
+            </div>
+          </div>
+        )}
+      </>
+    )
+  }
+
+  function renderByGroup() {
+    const grouped = {}
+    const ungrouped = []
+    for (const t of open) {
+      if (t.group_name) {
+        if (!grouped[t.group_name]) grouped[t.group_name] = []
+        grouped[t.group_name].push(t)
+      } else {
+        ungrouped.push(t)
+      }
+    }
+    const entries = Object.entries(grouped).sort(([a], [b]) => a.localeCompare(b, 'nb'))
+    if (ungrouped.length) entries.push(['Uten gruppe', ungrouped])
+    return (
+      <>
+        {entries.map(([name, items]) => (
+          <div key={name}>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">{name} ({items.length})</p>
+            <div className="space-y-2">
+              {sortOpen(items).map(t => <TaskItem key={t.id} task={t} onToggle={handleToggle} onDelete={handleDelete} />)}
+            </div>
+          </div>
+        ))}
+        {completed.length > 0 && (
+          <div>
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Fullført ({completed.length})</p>
+            <div className="space-y-2">
+              {completed.map(t => <TaskItem key={t.id} task={t} onToggle={handleToggle} onDelete={handleDelete} />)}
+            </div>
+          </div>
+        )}
+      </>
+    )
+  }
 
   if (loading) return <div className="p-6 text-gray-400 text-sm">Laster oppgaver...</div>
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
-      <div className="flex items-center justify-between px-6 py-3 border-b border-gray-100 shrink-0">
+      <div className="flex items-center justify-between px-6 py-3 border-b border-gray-100 shrink-0 gap-2 flex-wrap">
         <h3 className="font-semibold text-gray-700">Oppgaver</h3>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Sorteringstoggle */}
+          <div className="flex rounded-lg border border-gray-200 overflow-hidden text-xs">
+            <button
+              onClick={() => setSortBy('priority')}
+              className={`px-2.5 py-1.5 transition-colors ${sortBy === 'priority' ? 'bg-primary-500 text-white' : 'text-gray-500 hover:bg-gray-50'}`}
+            >
+              Prioritet
+            </button>
+            <button
+              onClick={() => setSortBy('group')}
+              className={`px-2.5 py-1.5 border-l border-gray-200 transition-colors ${sortBy === 'group' ? 'bg-primary-500 text-white' : 'text-gray-500 hover:bg-gray-50'}`}
+            >
+              Gruppe
+            </button>
+          </div>
+          <button onClick={handleCleanup} disabled={cleaning || tasks.filter(t => t.status !== 'completed').length < 2}
+            className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 text-gray-600 hover:border-primary-400 hover:text-primary-600 disabled:opacity-40 transition-colors">
+            {cleaning ? '🤖 Analyserer...' : '🤖 Rydd og grupper'}
+          </button>
           {activeUser.google_account_email && (
             <button onClick={handleSync} disabled={syncing}
-              className="text-xs text-gray-400 hover:text-gray-600 border border-gray-200 rounded px-2 py-1 transition-colors">
-              {syncing ? 'Synkroniserer...' : '↻ Sync med Google Tasks'}
+              className="text-xs text-gray-400 hover:text-gray-600 border border-gray-200 rounded-lg px-2.5 py-1.5 transition-colors">
+              {syncing ? 'Synkroniserer...' : '↻ Sync'}
             </button>
           )}
           <button onClick={() => setShowForm(f => !f)}
@@ -176,28 +293,55 @@ export default function TasksPanel({ folderId, folderName }) {
         </form>
       )}
 
+      {cleanupResult && (
+        <div className="mx-4 mt-3 shrink-0 border border-primary-200 rounded-xl overflow-hidden bg-primary-50">
+          <div className="flex items-center justify-between px-4 py-2.5 bg-primary-100 border-b border-primary-200">
+            <p className="text-xs font-semibold text-primary-800">
+              🤖 AI-forslag: {cleanupResult.merges.length} sammenslåing{cleanupResult.merges.length !== 1 ? 'er' : ''}, {cleanupResult.groups.length} grupper
+            </p>
+            <button onClick={() => setCleanupResult(null)} className="text-primary-400 hover:text-primary-600 text-xs">Avbryt</button>
+          </div>
+          <div className="px-4 py-3 space-y-3 max-h-56 overflow-y-auto">
+            {cleanupResult.merges.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Foreslåtte sammenslåinger</p>
+                {cleanupResult.merges.map((m, i) => (
+                  <label key={i} className="flex items-start gap-2 mb-1.5 cursor-pointer">
+                    <input type="checkbox" checked={approvedMerges.includes(i)}
+                      onChange={() => setApprovedMerges(prev => prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i])}
+                      className="w-3.5 h-3.5 accent-primary-500 mt-0.5 shrink-0" />
+                    <div className="text-xs">
+                      <p className="text-gray-800 font-medium">"{m.suggestedTitle}"</p>
+                      <p className="text-gray-400">{m.reason}</p>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            )}
+            <div>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Foreslåtte grupper</p>
+              {cleanupResult.groups.map((g, i) => (
+                <p key={i} className="text-xs text-gray-700 mb-0.5">
+                  <span className="font-medium">{g.name}</span>
+                  <span className="text-gray-400"> · {g.itemIds.length} element{g.itemIds.length !== 1 ? 'er' : ''}</span>
+                </p>
+              ))}
+            </div>
+          </div>
+          <div className="px-4 py-2.5 border-t border-primary-200">
+            <button onClick={applyCleanup} disabled={applying}
+              className="w-full bg-primary-600 text-white text-xs rounded-lg py-1.5 font-semibold hover:bg-primary-700 disabled:opacity-50 transition-colors">
+              {applying ? 'Bruker endringer...' : 'Bruk foreslåtte endringer'}
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="flex-1 overflow-y-auto px-6 py-4 space-y-5">
         {tasks.length === 0 && (
           <p className="text-gray-400 text-sm text-center py-8">Ingen oppgaver ennå</p>
         )}
-
-        {open.length > 0 && (
-          <div>
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Åpne ({open.length})</p>
-            <div className="space-y-2">
-              {open.map(t => <TaskItem key={t.id} task={t} onToggle={handleToggle} onDelete={handleDelete} />)}
-            </div>
-          </div>
-        )}
-
-        {completed.length > 0 && (
-          <div>
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Fullført ({completed.length})</p>
-            <div className="space-y-2">
-              {completed.map(t => <TaskItem key={t.id} task={t} onToggle={handleToggle} onDelete={handleDelete} />)}
-            </div>
-          </div>
-        )}
+        {sortBy === 'priority' ? renderByPriority() : renderByGroup()}
       </div>
     </div>
   )
