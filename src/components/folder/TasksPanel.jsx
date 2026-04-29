@@ -26,6 +26,7 @@ export default function TasksPanel({ folderId, folderName }) {
   const [approvedMerges, setApprovedMerges] = useState([])
   const [applying, setApplying]   = useState(false)
   const [assessing, setAssessing] = useState(false)
+  const [editingTask, setEditingTask] = useState(null)
 
   const loadTasks = useCallback(async () => {
     const { data } = await supabase
@@ -106,6 +107,11 @@ export default function TasksPanel({ folderId, folderName }) {
       try { await api.tasks.deleteItem(activeUser.id, task.google_tasklist_id, task.google_tasks_id) } catch {}
     }
     setTasks(prev => prev.filter(t => t.id !== task.id))
+  }
+
+  async function handleEditSave(id, fields) {
+    await supabase.from('tasks').update(fields).eq('id', id)
+    setTasks(prev => prev.map(t => t.id === id ? { ...t, ...fields } : t))
   }
 
   async function handleSync() {
@@ -234,7 +240,7 @@ export default function TasksPanel({ folderId, folderName }) {
                 {label} ({items.length})
               </p>
               <div className="space-y-2">
-                {items.map(t => <TaskItem key={t.id} task={t} onToggle={handleToggle} onDelete={handleDelete} onPriorityChange={handlePriorityChange} />)}
+                {items.map(t => <TaskItem key={t.id} task={t} onToggle={handleToggle} onDelete={handleDelete} onPriorityChange={handlePriorityChange} onEdit={() => setEditingTask(t)} />)}
               </div>
             </div>
           )
@@ -243,7 +249,7 @@ export default function TasksPanel({ folderId, folderName }) {
           <div>
             <p className="text-base font-bold text-gray-400 uppercase tracking-wide mb-2">Fullført ({completed.length})</p>
             <div className="space-y-2">
-              {completed.map(t => <TaskItem key={t.id} task={t} onToggle={handleToggle} onDelete={handleDelete} onPriorityChange={handlePriorityChange} />)}
+              {completed.map(t => <TaskItem key={t.id} task={t} onToggle={handleToggle} onDelete={handleDelete} onPriorityChange={handlePriorityChange} onEdit={() => setEditingTask(t)} />)}
             </div>
           </div>
         )}
@@ -270,7 +276,7 @@ export default function TasksPanel({ folderId, folderName }) {
           <div key={name}>
             <p className="text-base font-bold text-gray-600 uppercase tracking-wide mb-2">{name} ({items.length})</p>
             <div className="space-y-2">
-              {sortByPriorityThenDue(items).map(t => <TaskItem key={t.id} task={t} onToggle={handleToggle} onDelete={handleDelete} onPriorityChange={handlePriorityChange} />)}
+              {sortByPriorityThenDue(items).map(t => <TaskItem key={t.id} task={t} onToggle={handleToggle} onDelete={handleDelete} onPriorityChange={handlePriorityChange} onEdit={() => setEditingTask(t)} />)}
             </div>
           </div>
         ))}
@@ -278,7 +284,7 @@ export default function TasksPanel({ folderId, folderName }) {
           <div>
             <p className="text-base font-bold text-gray-400 uppercase tracking-wide mb-2">Fullført ({completed.length})</p>
             <div className="space-y-2">
-              {completed.map(t => <TaskItem key={t.id} task={t} onToggle={handleToggle} onDelete={handleDelete} onPriorityChange={handlePriorityChange} />)}
+              {completed.map(t => <TaskItem key={t.id} task={t} onToggle={handleToggle} onDelete={handleDelete} onPriorityChange={handlePriorityChange} onEdit={() => setEditingTask(t)} />)}
             </div>
           </div>
         )}
@@ -403,16 +409,96 @@ export default function TasksPanel({ folderId, folderName }) {
         )}
         {sortBy === 'priority' ? renderByPriority() : renderByGroup()}
       </div>
+
+      {editingTask && (
+        <TaskEditModal
+          task={editingTask}
+          onClose={() => setEditingTask(null)}
+          onSave={handleEditSave}
+          onDelete={handleDelete}
+        />
+      )}
     </div>
   )
 }
 
-function TaskItem({ task, onToggle, onDelete, onPriorityChange }) {
+function TaskEditModal({ task, onClose, onSave, onDelete }) {
+  const [title, setTitle]       = useState(task.title)
+  const [dueDate, setDueDate]   = useState(task.due_date ?? '')
+  const [priority, setPriority] = useState(task.priority ?? '')
+  const [saving, setSaving]     = useState(false)
+  const [confirming, setConfirming] = useState(false)
+
+  async function handleSave() {
+    if (!title.trim()) return
+    setSaving(true)
+    await onSave(task.id, { title: title.trim(), due_date: dueDate || null, priority: priority || null })
+    onClose()
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <h3 className="font-bold text-gray-800 text-lg">Rediger oppgave</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">✕</button>
+        </div>
+        <div className="space-y-3">
+          <div>
+            <label className="block text-sm font-medium text-gray-600 mb-1">Tittel</label>
+            <input autoFocus type="text" value={title} onChange={e => setTitle(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-600 mb-1">Frist</label>
+            <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-600 mb-1">Prioritet</label>
+            <select value={priority} onChange={e => setPriority(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400">
+              <option value="">– Ikke satt –</option>
+              <option value="high">Høy</option>
+              <option value="medium">Medium</option>
+              <option value="low">Lav</option>
+            </select>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 pt-2">
+          {!confirming ? (
+            <button onClick={() => setConfirming(true)}
+              className="text-sm text-red-400 hover:text-red-600 border border-red-200 rounded-lg px-3 py-2 transition-colors">
+              Slett
+            </button>
+          ) : (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-500">Sikker?</span>
+              <button onClick={() => { onDelete(task); onClose() }}
+                className="text-sm text-red-500 font-semibold hover:text-red-700">Ja, slett</button>
+              <button onClick={() => setConfirming(false)} className="text-sm text-gray-400 hover:text-gray-600">Avbryt</button>
+            </div>
+          )}
+          <div className="flex-1" />
+          <button onClick={onClose} className="text-sm text-gray-500 border border-gray-200 rounded-lg px-4 py-2 hover:bg-gray-50 transition-colors">Avbryt</button>
+          <button onClick={handleSave} disabled={saving || !title.trim()}
+            className="text-sm bg-primary-500 text-white rounded-lg px-4 py-2 font-semibold hover:bg-primary-600 disabled:opacity-50 transition-colors">
+            {saving ? 'Lagrer...' : 'Lagre'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function TaskItem({ task, onToggle, onDelete, onPriorityChange, onEdit }) {
   const isOverdue = task.due_date && task.status !== 'completed' && new Date(task.due_date) < new Date()
   const pri = PRIORITY[task.priority]
   return (
-    <div className="flex items-center gap-3 p-3 border border-gray-100 rounded-lg hover:border-gray-200 group transition-colors">
+    <div onClick={onEdit}
+      className="flex items-center gap-3 p-3 border border-gray-100 rounded-lg hover:border-primary-200 hover:bg-primary-50 group transition-colors cursor-pointer">
       <input type="checkbox" checked={task.status === 'completed'} onChange={() => onToggle(task)}
+        onClick={e => e.stopPropagation()}
         className="w-4 h-4 accent-primary-500 shrink-0" />
       <div className="flex-1 min-w-0">
         <p className={`text-sm ${task.status === 'completed' ? 'line-through text-gray-400' : 'text-gray-800'}`}>
@@ -424,12 +510,12 @@ function TaskItem({ task, onToggle, onDelete, onPriorityChange }) {
               {isOverdue ? '⚠ ' : ''}Frist: {new Date(task.due_date).toLocaleDateString('nb-NO')}
             </p>
           )}
-          {task.ai_suggested && <span className="text-xs text-purple-400">AI-foreslått</span>}
+          {task.ai_suggested && <span className="text-xs text-purple-400">Kaia-foreslått</span>}
         </div>
       </div>
       <select
         value={task.priority ?? ''}
-        onChange={e => onPriorityChange(task, e.target.value)}
+        onChange={e => { e.stopPropagation(); onPriorityChange(task, e.target.value) }}
         onClick={e => e.stopPropagation()}
         className={`text-xs rounded-md px-1.5 py-0.5 border font-medium cursor-pointer focus:outline-none ${pri ? `${pri.bg} ${pri.text} ${pri.border}` : 'bg-gray-50 text-gray-400 border-gray-200'}`}
       >
@@ -438,10 +524,6 @@ function TaskItem({ task, onToggle, onDelete, onPriorityChange }) {
         <option value="medium">Medium</option>
         <option value="low">Lav</option>
       </select>
-      <button onClick={() => onDelete(task)}
-        className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-400 text-xs transition-opacity">
-        ✕
-      </button>
     </div>
   )
 }

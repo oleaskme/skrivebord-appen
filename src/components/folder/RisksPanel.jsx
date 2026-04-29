@@ -21,6 +21,7 @@ export default function RisksPanel({ folderId }) {
   const [cleanupResult, setCleanupResult] = useState(null)
   const [approvedMerges, setApprovedMerges] = useState([])
   const [applying, setApplying]   = useState(false)
+  const [editingRisk, setEditingRisk] = useState(null)
 
   const loadRisks = useCallback(async () => {
     const { data } = await supabase
@@ -63,6 +64,11 @@ export default function RisksPanel({ folderId }) {
     } finally {
       setAdding(false)
     }
+  }
+
+  async function handleEditSave(id, fields) {
+    await supabase.from('risks').update(fields).eq('id', id)
+    setRisks(prev => prev.map(r => r.id === id ? { ...r, ...fields } : r))
   }
 
   async function handleCleanup() {
@@ -125,7 +131,7 @@ export default function RisksPanel({ folderId }) {
             {SEVERITY[sev].label} ({items.length})
           </p>
           <div className="space-y-2">
-            {items.map(r => <RiskItem key={r.id} risk={r} onConfirm={handleConfirm} onDismiss={handleDismiss} />)}
+            {items.map(r => <RiskItem key={r.id} risk={r} onConfirm={handleConfirm} onDismiss={handleDismiss} onEdit={() => setEditingRisk(r)} />)}
           </div>
         </div>
       ))
@@ -149,7 +155,7 @@ export default function RisksPanel({ folderId }) {
         <p className="text-base font-bold text-gray-600 uppercase tracking-wide mb-2">{name} ({items.length})</p>
         <div className="space-y-2">
           {[...items].sort((a, b) => (SEV_ORDER[a.severity] ?? 2) - (SEV_ORDER[b.severity] ?? 2))
-            .map(r => <RiskItem key={r.id} risk={r} onConfirm={handleConfirm} onDismiss={handleDismiss} />)}
+            .map(r => <RiskItem key={r.id} risk={r} onConfirm={handleConfirm} onDismiss={handleDismiss} onEdit={() => setEditingRisk(r)} />)}
         </div>
       </div>
     ))
@@ -260,14 +266,85 @@ export default function RisksPanel({ folderId }) {
         )}
         {sortBy === 'priority' ? renderByPriority() : renderByGroup()}
       </div>
+
+      {editingRisk && (
+        <RiskEditModal
+          risk={editingRisk}
+          onClose={() => setEditingRisk(null)}
+          onSave={handleEditSave}
+          onDelete={handleDismiss}
+        />
+      )}
     </div>
   )
 }
 
-function RiskItem({ risk, onConfirm, onDismiss }) {
+function RiskEditModal({ risk, onClose, onSave, onDelete }) {
+  const [title, setTitle]       = useState(risk.title)
+  const [severity, setSeverity] = useState(risk.severity ?? 'medium')
+  const [saving, setSaving]     = useState(false)
+  const [confirming, setConfirming] = useState(false)
+
+  async function handleSave() {
+    if (!title.trim()) return
+    setSaving(true)
+    await onSave(risk.id, { title: title.trim(), severity })
+    onClose()
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <h3 className="font-bold text-gray-800 text-lg">Rediger risiko</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">✕</button>
+        </div>
+        <div className="space-y-3">
+          <div>
+            <label className="block text-sm font-medium text-gray-600 mb-1">Beskrivelse</label>
+            <textarea autoFocus rows={3} value={title} onChange={e => setTitle(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 resize-none" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-600 mb-1">Alvorlighetsgrad</label>
+            <select value={severity} onChange={e => setSeverity(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400">
+              <option value="high">Høy</option>
+              <option value="medium">Middels</option>
+              <option value="low">Lav</option>
+            </select>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 pt-2">
+          {!confirming ? (
+            <button onClick={() => setConfirming(true)}
+              className="text-sm text-red-400 hover:text-red-600 border border-red-200 rounded-lg px-3 py-2 transition-colors">
+              Avvis
+            </button>
+          ) : (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-500">Sikker?</span>
+              <button onClick={() => { onDelete(risk); onClose() }}
+                className="text-sm text-red-500 font-semibold hover:text-red-700">Ja, avvis</button>
+              <button onClick={() => setConfirming(false)} className="text-sm text-gray-400 hover:text-gray-600">Avbryt</button>
+            </div>
+          )}
+          <div className="flex-1" />
+          <button onClick={onClose} className="text-sm text-gray-500 border border-gray-200 rounded-lg px-4 py-2 hover:bg-gray-50 transition-colors">Avbryt</button>
+          <button onClick={handleSave} disabled={saving || !title.trim()}
+            className="text-sm bg-primary-500 text-white rounded-lg px-4 py-2 font-semibold hover:bg-primary-600 disabled:opacity-50 transition-colors">
+            {saving ? 'Lagrer...' : 'Lagre'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function RiskItem({ risk, onConfirm, onDismiss, onEdit }) {
   const s = SEVERITY[risk.severity] ?? SEVERITY.medium
   return (
-    <div className={`p-3 border rounded-lg ${s.bg} ${s.border}`}>
+    <div onClick={onEdit} className={`p-3 border rounded-lg cursor-pointer hover:opacity-90 transition-opacity ${s.bg} ${s.border}`}>
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-start gap-2 flex-1">
           <span className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${s.dot}`} />
@@ -277,12 +354,12 @@ function RiskItem({ risk, onConfirm, onDismiss }) {
       </div>
       <div className="flex items-center gap-3 mt-2 ml-4">
         {risk.status === 'proposed' && (
-          <button onClick={() => onConfirm(risk)}
+          <button onClick={e => { e.stopPropagation(); onConfirm(risk) }}
             className="text-xs text-green-600 hover:text-green-800 font-medium transition-colors">
             ✓ Bekreft
           </button>
         )}
-        <button onClick={() => onDismiss(risk)}
+        <button onClick={e => { e.stopPropagation(); onDismiss(risk) }}
           className="text-xs text-gray-400 hover:text-red-500 transition-colors">
           Avvis
         </button>
