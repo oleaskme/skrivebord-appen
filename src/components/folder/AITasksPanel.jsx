@@ -203,8 +203,8 @@ export default function AITasksPanel({ folderId }) {
       {/* Header */}
       <div className="shrink-0 px-4 py-3 border-b border-gray-100 flex items-center justify-between">
         <div>
-          <h3 className="text-sm font-semibold text-gray-800">AI oppgaver</h3>
-          <p className="text-xs text-gray-400 mt-0.5">Velg oppgaver og godkjenn for å utføre</p>
+          <h3 className="text-sm font-semibold text-gray-800">Oppgaver til Kaia</h3>
+          <p className="text-xs text-gray-400 mt-0.5">Velg oppgaver og godkjenn for å la Kaia utføre dem</p>
         </div>
         <button
           onClick={loadActions}
@@ -227,7 +227,7 @@ export default function AITasksPanel({ folderId }) {
           ) : actions.length === 0 ? (
             <div className="flex items-center justify-center py-10 flex-col gap-2 text-gray-300">
               <div className="text-3xl">✅</div>
-              <p className="text-sm">Ingen AI-oppgaver tilgjengelig nå</p>
+              <p className="text-sm">Kaia har ingen oppgaver for øyeblikket</p>
               <p className="text-xs text-gray-400">Legg til dokumenter og oppgaver for å få forslag</p>
             </div>
           ) : (

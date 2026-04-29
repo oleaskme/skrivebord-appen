@@ -15,7 +15,7 @@ const TABS = [
   { id: 'tasks',    label: 'Oppgaver' },
   { id: 'risks',    label: 'Risikoer' },
   { id: 'qa',       label: 'Q&A' },
-  { id: 'aitasks',  label: 'AI oppgaver' },
+  { id: 'aitasks',  label: 'Oppgaver til Kaia' },
 ]
 
 const CHANGELOG_SEP = '--- Endringslogg ---'
@@ -40,7 +40,7 @@ function ChangesPanel({ reviewResult, approvedTasks, approvedRisks, onToggleTask
     return (
       <div className="h-full flex items-center justify-center text-gray-300 flex-col gap-2">
         <div className="text-4xl">🤖</div>
-        <p className="text-sm">Ingen AI-forslag ennå.</p>
+        <p className="text-sm">Ingen forslag fra Kaia ennå.</p>
         <p className="text-xs text-gray-400">Forslag vises her etter at du lagrer dokumentet.</p>
       </div>
     )
@@ -55,7 +55,7 @@ function ChangesPanel({ reviewResult, approvedTasks, approvedRisks, onToggleTask
     <div className="h-full flex flex-col overflow-hidden">
       <div className="px-6 py-4 border-b border-gray-100 shrink-0 flex items-center justify-between">
         <div>
-          <h3 className="font-semibold text-gray-800">AI-forslag</h3>
+          <h3 className="font-semibold text-gray-800">Kaias forslag</h3>
           <p className="text-xs text-gray-400 mt-0.5">{totalCount} element{totalCount !== 1 ? 'er' : ''} funnet</p>
         </div>
         <button onClick={onDismiss} className="text-xs text-gray-400 hover:text-gray-600 border border-gray-200 rounded-lg px-3 py-1.5 transition-colors">
@@ -230,7 +230,7 @@ function MasterViewer({ doc, folderId, onSaved, onReviewResult }) {
           {reviewing && (
             <span className="text-xs text-gray-400 flex items-center gap-1">
               <span className="w-3 h-3 border-2 border-gray-300 border-t-primary-500 rounded-full animate-spin inline-block" />
-              AI gjennomgår...
+              Kaia gjennomgår...
             </span>
           )}
           {dirty && (

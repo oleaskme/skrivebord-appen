@@ -104,7 +104,7 @@ export default function NewFolderModal({ onClose, onCreate }) {
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 bg-white"
                   />
                   <textarea
-                    placeholder="AI-instruksjon — beskriv dokumentets formål, struktur og hva AI-en skal se etter og oppdatere..."
+                    placeholder="Instruksjon til Kaia — beskriv dokumentets formål, struktur og hva Kaia skal se etter og oppdatere..."
                     value={m.ai_instruction}
                     onChange={e => updateMaster(i, 'ai_instruction', e.target.value)}
                     rows={3}

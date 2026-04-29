@@ -146,8 +146,8 @@ export default function LeftPanel({
                 className="w-full bg-primary-600 text-white rounded-lg py-2 text-sm font-semibold hover:bg-primary-700 disabled:opacity-60 transition-colors"
               >
                 {aiLoading
-                  ? '⏳ Kjører AI...'
-                  : `🤖 Kjør AI (${selectedInputIds.length} input → ${selectedMasterIds.length} master)`}
+                  ? '⏳ Kaia kjører...'
+                  : `🤖 Kjør Kaia (${selectedInputIds.length} input → ${selectedMasterIds.length} master)`}
               </button>
             )}
           </div>

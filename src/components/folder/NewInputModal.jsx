@@ -253,7 +253,7 @@ export default function NewInputModal({ folderId, masterDocs = [], onClose, onCr
           {masterDocs.length > 0 && (
             <div className="mt-5 pt-4 border-t border-gray-100">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-                Kjør AI mot master-dokumenter etter lagring
+                La Kaia oppdatere master-dokumenter etter lagring
               </p>
               <div className="space-y-2">
                 {masterDocs.map(m => (
@@ -270,7 +270,7 @@ export default function NewInputModal({ folderId, masterDocs = [], onClose, onCr
               </div>
               {selectedMasterIds.length > 0 && (
                 <p className="text-xs text-primary-500 mt-2">
-                  AI kjøres mot {selectedMasterIds.length} master-dokument{selectedMasterIds.length !== 1 ? 'er' : ''} etter lagring
+                  Kaia kjøres mot {selectedMasterIds.length} master-dokument{selectedMasterIds.length !== 1 ? 'er' : ''} etter lagring
                 </p>
               )}
             </div>

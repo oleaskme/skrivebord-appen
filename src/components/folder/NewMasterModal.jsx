@@ -110,7 +110,7 @@ export default function NewMasterModal({ folderId, inputDocs = [], onClose, onCr
             <div className="w-10 h-10 border-4 border-primary-200 border-t-primary-600 rounded-full animate-spin" />
             <p className="text-sm font-medium text-gray-600">
               {selectedInputIds.length > 0
-                ? `Kjører AI-analyse av ${selectedInputIds.length} INPUT-dokument${selectedInputIds.length !== 1 ? 'er' : ''}...`
+                ? `Kaia analyserer ${selectedInputIds.length} INPUT-dokument${selectedInputIds.length !== 1 ? 'er' : ''}...`
                 : 'Oppretter dokument...'}
             </p>
             <p className="text-xs text-gray-400">Dette kan ta noen sekunder</p>
@@ -130,12 +130,12 @@ export default function NewMasterModal({ folderId, inputDocs = [], onClose, onCr
                 />
               </div>
 
-              {/* AI-instruksjon */}
+              {/* Instruksjon til Kaia */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">AI-instruksjon</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Instruksjon til Kaia</label>
                 <textarea
                   value={aiInstruction} onChange={e => setAiInstruction(e.target.value)}
-                  rows={3} placeholder="Beskriv dokumentets formål og hva AI skal se etter i INPUT-dokumentene..."
+                  rows={3} placeholder="Beskriv dokumentets formål og hva Kaia skal se etter i INPUT-dokumentene..."
                   className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-primary-400 resize-none text-sm"
                 />
               </div>
@@ -179,7 +179,7 @@ export default function NewMasterModal({ folderId, inputDocs = [], onClose, onCr
                     Analyser med eksisterende INPUT-dokumenter
                     <span className="ml-1 font-normal text-gray-400">(valgfritt)</span>
                   </label>
-                  <p className="text-xs text-gray-400 mb-2">AI kombinerer opplastet dokument og valgte INPUT-dokumenter.</p>
+                  <p className="text-xs text-gray-400 mb-2">Kaia kombinerer opplastet dokument og valgte INPUT-dokumenter.</p>
                   <div className="border border-gray-200 rounded-lg overflow-hidden divide-y divide-gray-100 max-h-44 overflow-y-auto">
                     {inputDocs.map(doc => (
                       <label key={doc.id}
@@ -201,7 +201,7 @@ export default function NewMasterModal({ folderId, inputDocs = [], onClose, onCr
                   </div>
                   {selectedInputIds.length > 0 && (
                     <p className="text-xs text-primary-600 font-medium mt-1.5">
-                      {selectedInputIds.length} dokument{selectedInputIds.length !== 1 ? 'er' : ''} valgt — AI kjøres automatisk
+                      {selectedInputIds.length} dokument{selectedInputIds.length !== 1 ? 'er' : ''} valgt — Kaia kjøres automatisk
                     </p>
                   )}
                 </div>
@@ -214,7 +214,7 @@ export default function NewMasterModal({ folderId, inputDocs = [], onClose, onCr
               <button type="submit" disabled={!name.trim()}
                 className="flex-1 bg-primary-600 text-white rounded-lg py-2.5 font-semibold hover:bg-primary-700 disabled:opacity-50 transition-colors">
                 {selectedInputIds.length > 0
-                  ? `Opprett og kjør AI (${selectedInputIds.length} dok.)`
+                  ? `Opprett og kjør Kaia (${selectedInputIds.length} dok.)`
                   : uploadedHtml
                     ? 'Opprett med opplastet innhold'
                     : 'Opprett'}

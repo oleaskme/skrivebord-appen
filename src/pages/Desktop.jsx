@@ -5,6 +5,7 @@ import KPIPanel from '../components/KPIPanel'
 import FolderCard from '../components/FolderCard'
 import NewFolderModal from '../components/NewFolderModal'
 import GoogleConnectButton from '../components/GoogleConnectButton'
+import kaiaImg from '../assets/kaia.png'
 
 export default function Desktop() {
   const { activeUser, clearUser } = useUser()
@@ -92,6 +93,10 @@ export default function Desktop() {
             </div>
             Bytt bruker
           </button>
+          <div className="flex items-center gap-2 pl-2 border-l border-gray-100">
+            <img src={kaiaImg} alt="Kaia" className="w-10 h-10 rounded-full object-cover object-top shadow-sm" />
+            <span className="text-sm font-semibold text-gray-600">Kaia</span>
+          </div>
         </div>
       </div>
 

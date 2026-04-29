@@ -230,7 +230,7 @@ export default function TasksPanel({ folderId, folderName }) {
           const cls   = level === 'none' ? 'text-gray-400' : PRIORITY[level].text
           return (
             <div key={level}>
-              <p className={`text-xs font-semibold uppercase tracking-wide mb-2 ${cls}`}>
+              <p className={`text-base font-bold uppercase tracking-wide mb-2 ${cls}`}>
                 {label} ({items.length})
               </p>
               <div className="space-y-2">
@@ -241,7 +241,7 @@ export default function TasksPanel({ folderId, folderName }) {
         })}
         {completed.length > 0 && (
           <div>
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Fullført ({completed.length})</p>
+            <p className="text-base font-bold text-gray-400 uppercase tracking-wide mb-2">Fullført ({completed.length})</p>
             <div className="space-y-2">
               {completed.map(t => <TaskItem key={t.id} task={t} onToggle={handleToggle} onDelete={handleDelete} onPriorityChange={handlePriorityChange} />)}
             </div>
@@ -268,7 +268,7 @@ export default function TasksPanel({ folderId, folderName }) {
       <>
         {entries.map(([name, items]) => (
           <div key={name}>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">{name} ({items.length})</p>
+            <p className="text-base font-bold text-gray-600 uppercase tracking-wide mb-2">{name} ({items.length})</p>
             <div className="space-y-2">
               {sortByPriorityThenDue(items).map(t => <TaskItem key={t.id} task={t} onToggle={handleToggle} onDelete={handleDelete} onPriorityChange={handlePriorityChange} />)}
             </div>
@@ -276,7 +276,7 @@ export default function TasksPanel({ folderId, folderName }) {
         ))}
         {completed.length > 0 && (
           <div>
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Fullført ({completed.length})</p>
+            <p className="text-base font-bold text-gray-400 uppercase tracking-wide mb-2">Fullført ({completed.length})</p>
             <div className="space-y-2">
               {completed.map(t => <TaskItem key={t.id} task={t} onToggle={handleToggle} onDelete={handleDelete} onPriorityChange={handlePriorityChange} />)}
             </div>
@@ -309,11 +309,11 @@ export default function TasksPanel({ folderId, folderName }) {
           </div>
           <button onClick={handleAssessPriority} disabled={assessing || open.length === 0}
             className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 text-gray-600 hover:border-primary-400 hover:text-primary-600 disabled:opacity-40 transition-colors">
-            {assessing ? '🤖 Vurderer...' : '🤖 Vurder prioritet'}
+            {assessing ? '🤖 Kaia vurderer...' : '🤖 Kaia: Vurder prioritet'}
           </button>
           <button onClick={handleCleanup} disabled={cleaning || open.length < 2}
             className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 text-gray-600 hover:border-primary-400 hover:text-primary-600 disabled:opacity-40 transition-colors">
-            {cleaning ? '🤖 Analyserer...' : '🤖 Rydd og grupper'}
+            {cleaning ? '🤖 Kaia analyserer...' : '🤖 Kaia: Rydd og grupper'}
           </button>
           {activeUser.google_account_email && (
             <button onClick={handleSync} disabled={syncing}
@@ -357,7 +357,7 @@ export default function TasksPanel({ folderId, folderName }) {
         <div className="mx-4 mt-3 shrink-0 border border-primary-200 rounded-xl overflow-hidden bg-primary-50">
           <div className="flex items-center justify-between px-4 py-2.5 bg-primary-100 border-b border-primary-200">
             <p className="text-xs font-semibold text-primary-800">
-              🤖 AI-forslag: {cleanupResult.merges.length} sammenslåing{cleanupResult.merges.length !== 1 ? 'er' : ''}, {cleanupResult.groups.length} grupper
+              🤖 Kaia foreslår: {cleanupResult.merges.length} sammenslåing{cleanupResult.merges.length !== 1 ? 'er' : ''}, {cleanupResult.groups.length} grupper
             </p>
             <button onClick={() => setCleanupResult(null)} className="text-primary-400 hover:text-primary-600 text-xs">Avbryt</button>
           </div>
