@@ -6,6 +6,7 @@ import FolderCard from '../components/FolderCard'
 import NewFolderModal from '../components/NewFolderModal'
 import GoogleConnectButton from '../components/GoogleConnectButton'
 import kaiaImg from '../assets/kaia.png'
+import kaiaVideo from '../assets/kaia.mp4'
 
 export default function Desktop() {
   const { activeUser, clearUser } = useUser()
@@ -99,10 +100,14 @@ export default function Desktop() {
             <span className="text-xs font-semibold text-gray-500 mt-1">Kaia</span>
           </div>
           {kaiaOpen && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={() => setKaiaOpen(false)}>
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70" onClick={() => setKaiaOpen(false)}>
               <div className="relative" onClick={e => e.stopPropagation()}>
-                <img src={kaiaImg} alt="Kaia" className="w-96 h-96 rounded-2xl object-cover object-top shadow-2xl" />
-                <p className="text-center text-white font-semibold mt-3 text-lg">Kaia</p>
+                <video
+                  src={kaiaVideo}
+                  autoPlay
+                  controls
+                  className="rounded-2xl shadow-2xl max-h-[80vh] max-w-[90vw]"
+                />
                 <button onClick={() => setKaiaOpen(false)} className="absolute top-2 right-2 bg-black/40 text-white rounded-full w-8 h-8 flex items-center justify-center hover:bg-black/60 transition-colors">✕</button>
               </div>
             </div>
