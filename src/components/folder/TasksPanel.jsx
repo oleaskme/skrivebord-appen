@@ -3,12 +3,20 @@ import { supabase } from '../../lib/supabase'
 import { api } from '../../lib/api'
 import { useUser } from '../../context/UserContext'
 
+const PRIORITY = {
+  high:   { label: 'Høy',     bg: 'bg-red-100',    text: 'text-red-700',    border: 'border-red-200' },
+  medium: { label: 'Medium',  bg: 'bg-yellow-100', text: 'text-yellow-700', border: 'border-yellow-200' },
+  low:    { label: 'Lav',     bg: 'bg-gray-100',   text: 'text-gray-500',   border: 'border-gray-200' },
+}
+const PRI_ORDER = { high: 0, medium: 1, low: 2, null: 3, undefined: 3 }
+
 export default function TasksPanel({ folderId, folderName }) {
   const { activeUser } = useUser()
   const [tasks, setTasks]         = useState([])
   const [loading, setLoading]     = useState(true)
   const [newTitle, setNewTitle]   = useState('')
   const [newDue, setNewDue]       = useState('')
+  const [newPriority, setNewPriority] = useState('medium')
   const [adding, setAdding]       = useState(false)
   const [showForm, setShowForm]   = useState(false)
   const [syncing, setSyncing]     = useState(false)
@@ -17,6 +25,7 @@ export default function TasksPanel({ folderId, folderName }) {
   const [cleanupResult, setCleanupResult] = useState(null)
   const [approvedMerges, setApprovedMerges] = useState([])
   const [applying, setApplying]   = useState(false)
+  const [assessing, setAssessing] = useState(false)
 
   const loadTasks = useCallback(async () => {
     const { data } = await supabase
@@ -56,6 +65,7 @@ export default function TasksPanel({ folderId, folderName }) {
         folder_id: folderId,
         title: newTitle.trim(),
         due_date: newDue || null,
+        priority: newPriority,
         google_tasks_id: googleTasksId,
         google_tasklist_id: googleTasklistId,
         status: 'open',
@@ -64,6 +74,7 @@ export default function TasksPanel({ folderId, folderName }) {
       setTasks(prev => [...prev, data])
       setNewTitle('')
       setNewDue('')
+      setNewPriority('medium')
       setShowForm(false)
     } finally {
       setAdding(false)
@@ -82,6 +93,11 @@ export default function TasksPanel({ folderId, folderName }) {
       } catch {}
     }
     setTasks(prev => prev.map(t => t.id === task.id ? { ...t, status: newStatus } : t))
+  }
+
+  async function handlePriorityChange(task, priority) {
+    await supabase.from('tasks').update({ priority }).eq('id', task.id)
+    setTasks(prev => prev.map(t => t.id === task.id ? { ...t, priority } : t))
   }
 
   async function handleDelete(task) {
@@ -119,6 +135,27 @@ export default function TasksPanel({ folderId, folderName }) {
       await loadTasks()
     } finally {
       setSyncing(false)
+    }
+  }
+
+  async function handleAssessPriority() {
+    setAssessing(true)
+    try {
+      const res = await fetch('/api/ai/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ folderId, mode: 'assess_priority' }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      for (const { id, priority } of data.priorities) {
+        await supabase.from('tasks').update({ priority }).eq('id', id)
+      }
+      await loadTasks()
+    } catch (err) {
+      alert('Feil: ' + err.message)
+    } finally {
+      setAssessing(false)
     }
   }
 
@@ -168,8 +205,10 @@ export default function TasksPanel({ folderId, folderName }) {
   const open      = tasks.filter(t => t.status === 'open')
   const completed = tasks.filter(t => t.status === 'completed')
 
-  function sortOpen(items) {
+  function sortByPriorityThenDue(items) {
     return [...items].sort((a, b) => {
+      const pd = (PRI_ORDER[a.priority] ?? 3) - (PRI_ORDER[b.priority] ?? 3)
+      if (pd !== 0) return pd
       if (a.due_date && b.due_date) return new Date(a.due_date) - new Date(b.due_date)
       if (a.due_date) return -1
       if (b.due_date) return 1
@@ -178,21 +217,33 @@ export default function TasksPanel({ folderId, folderName }) {
   }
 
   function renderByPriority() {
+    const sorted = sortByPriorityThenDue(open)
+    const byLevel = { high: [], medium: [], low: [], none: [] }
+    for (const t of sorted) byLevel[t.priority ?? 'none'].push(t)
+
     return (
       <>
-        {open.length > 0 && (
-          <div>
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Åpne ({open.length})</p>
-            <div className="space-y-2">
-              {sortOpen(open).map(t => <TaskItem key={t.id} task={t} onToggle={handleToggle} onDelete={handleDelete} />)}
+        {(['high', 'medium', 'low', 'none']).map(level => {
+          const items = byLevel[level]
+          if (!items.length) return null
+          const label = level === 'none' ? 'Uten prioritet' : PRIORITY[level].label
+          const cls   = level === 'none' ? 'text-gray-400' : PRIORITY[level].text
+          return (
+            <div key={level}>
+              <p className={`text-xs font-semibold uppercase tracking-wide mb-2 ${cls}`}>
+                {label} ({items.length})
+              </p>
+              <div className="space-y-2">
+                {items.map(t => <TaskItem key={t.id} task={t} onToggle={handleToggle} onDelete={handleDelete} onPriorityChange={handlePriorityChange} />)}
+              </div>
             </div>
-          </div>
-        )}
+          )
+        })}
         {completed.length > 0 && (
           <div>
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Fullført ({completed.length})</p>
             <div className="space-y-2">
-              {completed.map(t => <TaskItem key={t.id} task={t} onToggle={handleToggle} onDelete={handleDelete} />)}
+              {completed.map(t => <TaskItem key={t.id} task={t} onToggle={handleToggle} onDelete={handleDelete} onPriorityChange={handlePriorityChange} />)}
             </div>
           </div>
         )}
@@ -219,7 +270,7 @@ export default function TasksPanel({ folderId, folderName }) {
           <div key={name}>
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">{name} ({items.length})</p>
             <div className="space-y-2">
-              {sortOpen(items).map(t => <TaskItem key={t.id} task={t} onToggle={handleToggle} onDelete={handleDelete} />)}
+              {sortByPriorityThenDue(items).map(t => <TaskItem key={t.id} task={t} onToggle={handleToggle} onDelete={handleDelete} onPriorityChange={handlePriorityChange} />)}
             </div>
           </div>
         ))}
@@ -227,7 +278,7 @@ export default function TasksPanel({ folderId, folderName }) {
           <div>
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Fullført ({completed.length})</p>
             <div className="space-y-2">
-              {completed.map(t => <TaskItem key={t.id} task={t} onToggle={handleToggle} onDelete={handleDelete} />)}
+              {completed.map(t => <TaskItem key={t.id} task={t} onToggle={handleToggle} onDelete={handleDelete} onPriorityChange={handlePriorityChange} />)}
             </div>
           </div>
         )}
@@ -242,7 +293,6 @@ export default function TasksPanel({ folderId, folderName }) {
       <div className="flex items-center justify-between px-6 py-3 border-b border-gray-100 shrink-0 gap-2 flex-wrap">
         <h3 className="font-semibold text-gray-700">Oppgaver</h3>
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Sorteringstoggle */}
           <div className="flex rounded-lg border border-gray-200 overflow-hidden text-xs">
             <button
               onClick={() => setSortBy('priority')}
@@ -257,7 +307,11 @@ export default function TasksPanel({ folderId, folderName }) {
               Gruppe
             </button>
           </div>
-          <button onClick={handleCleanup} disabled={cleaning || tasks.filter(t => t.status !== 'completed').length < 2}
+          <button onClick={handleAssessPriority} disabled={assessing || open.length === 0}
+            className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 text-gray-600 hover:border-primary-400 hover:text-primary-600 disabled:opacity-40 transition-colors">
+            {assessing ? '🤖 Vurderer...' : '🤖 Vurder prioritet'}
+          </button>
+          <button onClick={handleCleanup} disabled={cleaning || open.length < 2}
             className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 text-gray-600 hover:border-primary-400 hover:text-primary-600 disabled:opacity-40 transition-colors">
             {cleaning ? '🤖 Analyserer...' : '🤖 Rydd og grupper'}
           </button>
@@ -282,6 +336,12 @@ export default function TasksPanel({ folderId, folderName }) {
             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400"
           />
           <div className="flex gap-2">
+            <select value={newPriority} onChange={e => setNewPriority(e.target.value)}
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400">
+              <option value="high">Høy</option>
+              <option value="medium">Medium</option>
+              <option value="low">Lav</option>
+            </select>
             <input type="date" value={newDue} onChange={e => setNewDue(e.target.value)}
               className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400"
             />
@@ -347,8 +407,9 @@ export default function TasksPanel({ folderId, folderName }) {
   )
 }
 
-function TaskItem({ task, onToggle, onDelete }) {
+function TaskItem({ task, onToggle, onDelete, onPriorityChange }) {
   const isOverdue = task.due_date && task.status !== 'completed' && new Date(task.due_date) < new Date()
+  const pri = PRIORITY[task.priority]
   return (
     <div className="flex items-center gap-3 p-3 border border-gray-100 rounded-lg hover:border-gray-200 group transition-colors">
       <input type="checkbox" checked={task.status === 'completed'} onChange={() => onToggle(task)}
@@ -357,13 +418,26 @@ function TaskItem({ task, onToggle, onDelete }) {
         <p className={`text-sm ${task.status === 'completed' ? 'line-through text-gray-400' : 'text-gray-800'}`}>
           {task.title}
         </p>
-        {task.due_date && (
-          <p className={`text-xs mt-0.5 ${isOverdue ? 'text-red-500' : 'text-gray-400'}`}>
-            {isOverdue ? '⚠ ' : ''}Frist: {new Date(task.due_date).toLocaleDateString('nb-NO')}
-          </p>
-        )}
-        {task.ai_suggested && <span className="text-xs text-purple-400">AI-foreslått</span>}
+        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+          {task.due_date && (
+            <p className={`text-xs ${isOverdue ? 'text-red-500' : 'text-gray-400'}`}>
+              {isOverdue ? '⚠ ' : ''}Frist: {new Date(task.due_date).toLocaleDateString('nb-NO')}
+            </p>
+          )}
+          {task.ai_suggested && <span className="text-xs text-purple-400">AI-foreslått</span>}
+        </div>
       </div>
+      <select
+        value={task.priority ?? ''}
+        onChange={e => onPriorityChange(task, e.target.value)}
+        onClick={e => e.stopPropagation()}
+        className={`text-xs rounded-md px-1.5 py-0.5 border font-medium cursor-pointer focus:outline-none ${pri ? `${pri.bg} ${pri.text} ${pri.border}` : 'bg-gray-50 text-gray-400 border-gray-200'}`}
+      >
+        <option value="">–</option>
+        <option value="high">Høy</option>
+        <option value="medium">Medium</option>
+        <option value="low">Lav</option>
+      </select>
       <button onClick={() => onDelete(task)}
         className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-400 text-xs transition-opacity">
         ✕

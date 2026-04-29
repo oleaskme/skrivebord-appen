@@ -99,6 +99,46 @@ export default async function handler(req, res) {
 
   const { folderId, masterDocId, inputDocIds, mode, question, history } = req.body
 
+  // ── Prioritetsvurdering ──
+  if (mode === 'assess_priority') {
+    if (!folderId) return res.status(400).json({ error: 'folderId kreves' })
+    try {
+      const { data: taskRows } = await supabase
+        .from('tasks')
+        .select('id, title, due_date')
+        .eq('folder_id', folderId)
+        .neq('status', 'completed')
+
+      if (!taskRows?.length) return res.json({ priorities: [] })
+
+      const list = taskRows.map(t =>
+        `id:${t.id} | "${t.title}"${t.due_date ? ` (frist: ${t.due_date})` : ''}`
+      ).join('\n')
+
+      const prompt = `Vurder prioritet for følgende oppgaver. Bruk "high", "medium" eller "low".
+Svar med JSON-array — ingen forklaring, kun JSON:
+[{"id":"<id>","priority":"high|medium|low"}]
+
+Oppgaver:
+${list}`
+
+      const response = await anthropic.messages.create({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 1024,
+        messages: [{ role: 'user', content: prompt }],
+      })
+
+      const raw = response.content[0].text.trim()
+      let priorities
+      try { priorities = JSON.parse(raw) }
+      catch { const m = raw.match(/\[[\s\S]*\]/); priorities = m ? JSON.parse(m[0]) : [] }
+
+      return res.json({ priorities })
+    } catch (err) {
+      return res.status(500).json({ error: err.message })
+    }
+  }
+
   // ── Rydd og grupper-modus ──
   if (mode === 'cleanup') {
     const { itemType } = req.body
