@@ -83,10 +83,71 @@ Returner alltid gyldig JSON uten markdown-blokker:
   "suggested_risks": [{ "title": "...", "severity": "high|medium|low" }]
 }`
 
+const QA_SYSTEM_PROMPT = `Du er en hjelpsom assistent som svarer på spørsmål basert på dokumenter i en prosjektmappe.
+
+Regler:
+1. Svar alltid på norsk.
+2. Henvis eksplisitt til hvilke dokumenter du bruker ved å avslutte svaret med en «Kilder»-seksjon på dette formatet:
+   ---SOURCES---
+   [{"id":"<doc-id>","title":"<tittel>","type":"<master|input-type>"}]
+3. Inkluder kun kilder du faktisk hentet informasjon fra.
+4. Hvis svaret ikke finnes i dokumentene, si det tydelig.
+5. Svar konsist og strukturert.`
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Metode ikke støttet' })
 
-  const { folderId, masterDocId, inputDocIds, mode } = req.body
+  const { folderId, masterDocId, inputDocIds, mode, question, history } = req.body
+
+  // ── Q&A-modus ──
+  if (mode === 'qa') {
+    if (!folderId || !question) return res.status(400).json({ error: 'folderId og question kreves' })
+    try {
+      const [folderRes, mastersRes, inputsRes] = await Promise.all([
+        supabase.from('folders').select('name, purpose').eq('id', folderId).single(),
+        supabase.from('master_documents').select('id, name, content').eq('folder_id', folderId),
+        supabase.from('input_documents').select('id, title, type, content').eq('folder_id', folderId),
+      ])
+
+      const folder   = folderRes.data
+      const masters  = mastersRes.data ?? []
+      const inputs   = inputsRes.data ?? []
+
+      const docsContext = [
+        ...masters.map(d => `[MASTER | id:${d.id} | "${d.name}"]\n${d.content ?? '(tomt)'}`),
+        ...inputs.map(d  => `[INPUT:${d.type} | id:${d.id} | "${d.title}"]\n${d.content ?? '(tomt)'}`),
+      ].join('\n\n---\n\n')
+
+      const systemWithDocs = `${QA_SYSTEM_PROMPT}\n\nMappe: ${folder.name}\nFormål: ${folder.purpose ?? '(ikke oppgitt)'}\n\nTilgjengelige dokumenter:\n\n${docsContext}`
+
+      const messages = [
+        ...(history ?? []).map(m => ({ role: m.role, content: m.content })),
+        { role: 'user', content: question },
+      ]
+
+      const response = await anthropic.messages.create({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 2048,
+        system: systemWithDocs,
+        messages,
+      })
+
+      const raw = response.content[0].text.trim()
+      const sepIdx = raw.lastIndexOf('---SOURCES---')
+      let answer  = raw
+      let sources = []
+
+      if (sepIdx >= 0) {
+        answer = raw.slice(0, sepIdx).trim()
+        try { sources = JSON.parse(raw.slice(sepIdx + 13).trim()) } catch {}
+      }
+
+      return res.json({ answer, sources })
+    } catch (err) {
+      return res.status(500).json({ error: err.message })
+    }
+  }
+
   const isReview = mode === 'review' || !inputDocIds?.length
 
   if (!folderId || !masterDocId) {

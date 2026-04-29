@@ -3,8 +3,8 @@ import { supabase } from '../../lib/supabase'
 import { formatVersion } from '../../lib/hash'
 import { useUser } from '../../context/UserContext'
 import TasksPanel from './TasksPanel'
-import MeetingsPanel from './MeetingsPanel'
 import RisksPanel from './RisksPanel'
+import QAPanel from './QAPanel'
 import RichTextEditor from '../RichTextEditor'
 import { normalizeToHtml } from '../../lib/normalizeHtml'
 
@@ -12,8 +12,8 @@ const TABS = [
   { id: 'doc',      label: 'Dokument' },
   { id: 'changes',  label: 'Endringer' },
   { id: 'tasks',    label: 'Oppgaver' },
-  { id: 'meetings', label: 'Møter' },
   { id: 'risks',    label: 'Risikoer' },
+  { id: 'qa',       label: 'Q&A' },
 ]
 
 const CHANGELOG_SEP = '--- Endringslogg ---'
@@ -407,9 +407,9 @@ export default function RightPanel({ selectedDoc, masterDocs, inputDocs, onMaste
             saving={savingReview}
           />
         )}
-        {activeTab === 'tasks'    && <TasksPanel    folderId={folderId} folderName={folderName} />}
-        {activeTab === 'meetings' && <MeetingsPanel folderId={folderId} />}
-        {activeTab === 'risks'    && <RisksPanel    folderId={folderId} />}
+        {activeTab === 'tasks'    && <TasksPanel folderId={folderId} folderName={folderName} />}
+        {activeTab === 'risks'    && <RisksPanel folderId={folderId} />}
+        {activeTab === 'qa'       && <QAPanel    folderId={folderId} />}
       </div>
     </div>
   )
