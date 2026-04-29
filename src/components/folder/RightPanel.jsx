@@ -5,6 +5,7 @@ import { useUser } from '../../context/UserContext'
 import TasksPanel from './TasksPanel'
 import RisksPanel from './RisksPanel'
 import QAPanel from './QAPanel'
+import AITasksPanel from './AITasksPanel'
 import RichTextEditor from '../RichTextEditor'
 import { normalizeToHtml } from '../../lib/normalizeHtml'
 
@@ -14,6 +15,7 @@ const TABS = [
   { id: 'tasks',    label: 'Oppgaver' },
   { id: 'risks',    label: 'Risikoer' },
   { id: 'qa',       label: 'Q&A' },
+  { id: 'aitasks',  label: 'AI oppgaver' },
 ]
 
 const CHANGELOG_SEP = '--- Endringslogg ---'
@@ -410,6 +412,7 @@ export default function RightPanel({ selectedDoc, masterDocs, inputDocs, onMaste
         {activeTab === 'tasks'    && <TasksPanel folderId={folderId} folderName={folderName} />}
         {activeTab === 'risks'    && <RisksPanel folderId={folderId} />}
         {activeTab === 'qa'       && <QAPanel    folderId={folderId} />}
+        {activeTab === 'aitasks'  && <AITasksPanel folderId={folderId} />}
       </div>
     </div>
   )
