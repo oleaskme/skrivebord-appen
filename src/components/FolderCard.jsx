@@ -65,11 +65,11 @@ export default function FolderCard({ folder, onDelete }) {
           </button>
         </div>
 
-        <h3 className="font-semibold text-gray-900 mb-1 truncate">{folder.name}</h3>
-        <p className="text-xs text-gray-400">Sist aktiv: {formatDate(folder.last_activity_at)}</p>
+        <h3 className="font-semibold text-xl text-gray-900 mb-1 truncate">{folder.name}</h3>
+        <p className="text-base text-gray-400">Sist aktiv: {formatDate(folder.last_activity_at)}</p>
 
         <div className="mt-3">
-          <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2 py-0.5 rounded-full ${status.badge}`}>
+          <span className={`inline-flex items-center gap-1.5 text-base font-medium px-2 py-1 rounded-full ${status.badge}`}>
             <span className={`w-1.5 h-1.5 rounded-full ${status.dot}`} />
             {status.label}
           </span>

@@ -321,20 +321,35 @@ Oppdater MASTER-dokumentet basert på INPUT-dokumentene og returner JSON.`
     // Kall Claude API
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
-      max_tokens: 8096,
+      max_tokens: 16000,
       system: SYSTEM_PROMPT,
       messages: [{ role: 'user', content: userMessage }],
     })
 
+    if (response.stop_reason === 'max_tokens') {
+      console.error('AI run: svar ble trunkert (max_tokens nådd)')
+      throw new Error('Dokumentet er for stort — AI-svaret ble avskåret. Prøv med færre eller kortere INPUT-dokumenter.')
+    }
+
     const rawText = response.content[0].text.trim()
 
-    // Parse JSON fra Claude
+    // Parse JSON fra Claude — håndter markdown-fences og greedy extraction
+    function extractJson(text) {
+      // Strip ```json ... ``` eller ``` ... ```
+      const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/)
+      if (fenced) return fenced[1].trim()
+      return text
+    }
+
     let result
     try {
-      result = JSON.parse(rawText)
+      result = JSON.parse(extractJson(rawText))
     } catch {
       const match = rawText.match(/\{[\s\S]*\}/)
-      if (!match) throw new Error('Claude returnerte ikke gyldig JSON')
+      if (!match) {
+        console.error('AI run: ugyldig JSON. Råtekst (500 tegn):', rawText.slice(0, 500))
+        throw new Error('Claude returnerte ikke gyldig JSON')
+      }
       result = JSON.parse(match[0])
     }
 

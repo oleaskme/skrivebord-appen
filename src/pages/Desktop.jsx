@@ -103,12 +103,12 @@ export default function Desktop() {
       {/* Sone C — Mappeoversikt (60%) */}
       <div className="flex-1 overflow-y-auto px-8 py-6 bg-gray-50">
         <div className="flex items-center justify-between mb-5">
-          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
+          <h2 className="text-base font-semibold text-gray-500 uppercase tracking-wide">
             Mapper ({filtered.length})
           </h2>
           <button
             onClick={() => setShowNewFolder(true)}
-            className="flex items-center gap-2 bg-primary-500 text-white rounded-lg px-4 py-2 text-sm font-medium hover:bg-primary-600 transition-colors"
+            className="flex items-center gap-2 bg-primary-500 text-white rounded-lg px-4 py-2 text-base font-medium hover:bg-primary-600 transition-colors"
           >
             + Ny mappe
           </button>
