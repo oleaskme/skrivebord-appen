@@ -32,6 +32,7 @@ export default function FolderView() {
   const [selectedInputIds, setSelectedInputIds] = useState([])
   const [aiLoading, setAiLoading] = useState(false)
   const [aiResult, setAiResult] = useState(null)
+  const [pendingAIRuns, setPendingAIRuns] = useState([])
   const [search, setSearch] = useState('')
 
   const loadAll = useCallback(async () => {
@@ -81,9 +82,52 @@ export default function FolderView() {
     setAiResult(aiResult)
   }
 
-  function handleInputCreated(doc) {
+  async function handleInputCreated(doc, masterIds = []) {
     setInputDocs(prev => [doc, ...prev])
     setSelectedDoc({ type: 'input', id: doc.id })
+    if (masterIds.length === 0) return
+    const [firstId, ...rest] = masterIds
+    setPendingAIRuns(rest.map(id => ({ masterDocId: id, inputDocIds: [doc.id] })))
+    setAiLoading(true)
+    try {
+      const res = await fetch('/api/ai/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ folderId, masterDocId: firstId, inputDocIds: [doc.id] }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setSelectedDoc({ type: 'master', id: firstId })
+      setSelectedInputIds([doc.id])
+      setAiResult(data)
+    } catch (err) {
+      alert('AI-kjøring feilet: ' + err.message)
+    } finally {
+      setAiLoading(false)
+    }
+  }
+
+  async function runNextPendingAI() {
+    if (pendingAIRuns.length === 0) return
+    const [next, ...remaining] = pendingAIRuns
+    setPendingAIRuns(remaining)
+    setAiLoading(true)
+    try {
+      const res = await fetch('/api/ai/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ folderId, ...next }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setSelectedDoc({ type: 'master', id: next.masterDocId })
+      setSelectedInputIds(next.inputDocIds)
+      setAiResult(data)
+    } catch (err) {
+      alert('AI-kjøring feilet: ' + err.message)
+    } finally {
+      setAiLoading(false)
+    }
   }
 
   function handleMasterSaved() {
@@ -119,10 +163,11 @@ export default function FolderView() {
     }
   }
 
-  function handleAIApproved() {
+  async function handleAIApproved() {
     setAiResult(null)
     setSelectedInputIds([])
-    loadAll()
+    await loadAll()
+    if (pendingAIRuns.length > 0) runNextPendingAI()
   }
 
   if (loading) {
@@ -251,6 +296,7 @@ export default function FolderView() {
       {showNewInput && (
         <NewInputModal
           folderId={folderId}
+          masterDocs={masterDocs}
           onClose={() => setShowNewInput(false)}
           onCreated={handleInputCreated}
         />

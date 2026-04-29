@@ -45,7 +45,7 @@ async function checkDuplicate(folderId, hash, sourceId) {
   return (data?.length ?? 0) > 0
 }
 
-export default function NewInputModal({ folderId, onClose, onCreated }) {
+export default function NewInputModal({ folderId, masterDocs = [], onClose, onCreated }) {
   const { activeUser } = useUser()
   const [tab, setTab] = useState('note')
   const [title, setTitle] = useState('')
@@ -55,7 +55,12 @@ export default function NewInputModal({ folderId, onClose, onCreated }) {
   const [showGmail, setShowGmail] = useState(false)
   const [showDrive, setShowDrive] = useState(false)
   const [dragOver, setDragOver] = useState(false)
+  const [selectedMasterIds, setSelectedMasterIds] = useState(masterDocs.map(m => m.id))
   const fileInputRef = useRef(null)
+
+  function toggleMaster(id) {
+    setSelectedMasterIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+  }
 
   async function save(type, docTitle, docContent, sourceId, metadata = {}) {
     setSaving(true)
@@ -84,7 +89,7 @@ export default function NewInputModal({ folderId, onClose, onCreated }) {
         .single()
       if (err) throw err
       await supabase.from('folders').update({ last_activity_at: new Date().toISOString() }).eq('id', folderId)
-      onCreated(data)
+      onCreated(data, selectedMasterIds)
       onClose()
     } catch (err) {
       setError(err.message)
@@ -241,6 +246,33 @@ export default function NewInputModal({ folderId, onClose, onCreated }) {
               </div>
               {saving && <p className="text-gray-400 text-sm text-center">Leser fil...</p>}
               {error && <p className="text-red-500 text-sm">{error}</p>}
+            </div>
+          )}
+
+          {/* Master-valg */}
+          {masterDocs.length > 0 && (
+            <div className="mt-5 pt-4 border-t border-gray-100">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                Kjør AI mot master-dokumenter etter lagring
+              </p>
+              <div className="space-y-2">
+                {masterDocs.map(m => (
+                  <label key={m.id} className={`flex items-center gap-2.5 p-2.5 rounded-lg border cursor-pointer transition-colors ${selectedMasterIds.includes(m.id) ? 'border-primary-200 bg-primary-50' : 'border-gray-100 hover:border-gray-200'}`}>
+                    <input
+                      type="checkbox"
+                      checked={selectedMasterIds.includes(m.id)}
+                      onChange={() => toggleMaster(m.id)}
+                      className="w-4 h-4 accent-primary-500 shrink-0"
+                    />
+                    <span className="text-sm text-gray-700 truncate">{m.name}</span>
+                  </label>
+                ))}
+              </div>
+              {selectedMasterIds.length > 0 && (
+                <p className="text-xs text-primary-500 mt-2">
+                  AI kjøres mot {selectedMasterIds.length} master-dokument{selectedMasterIds.length !== 1 ? 'er' : ''} etter lagring
+                </p>
+              )}
             </div>
           )}
         </div>

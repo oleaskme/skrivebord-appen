@@ -55,18 +55,32 @@ function styledRuns(html, size, color) {
   return runs.length ? runs : [new TextRun({ text: '', font: 'Arial', size, color })]
 }
 
+function preprocessHtml(html) {
+  // Mark <li> inside <ol> with a sequential counter so we can render them as numbered
+  return html.replace(/<ol[^>]*>([\s\S]*?)<\/ol>/gi, (_, inner) => {
+    let n = 0
+    return inner.replace(/<li[^>]*>/gi, () => `<li data-num="${++n}">`)
+  })
+}
+
+function cleanInner(raw) {
+  // Strip wrapping <p> that TipTap adds inside <li>, then trim whitespace
+  return raw.replace(/<p>([\s\S]*?)<\/p>/gi, '$1').trim()
+}
+
 function htmlToDocxParagraphs(html) {
   const out = []
+  const processed = preprocessHtml(html)
   const blockRe = /<(h[1-6]|p|li|blockquote|hr)([^>]*)>([\s\S]*?)<\/\1>|<hr[^>]*\/?>/gi
   let match
-  while ((match = blockRe.exec(html)) !== null) {
+  while ((match = blockRe.exec(processed)) !== null) {
     const tag   = (match[1] ?? 'hr').toLowerCase()
-    const inner = (match[3] ?? '').replace(/<p>([\s\S]*?)<\/p>/gi, '$1')
+    const attrs = match[2] ?? ''
+    const inner = cleanInner(match[3] ?? '')
 
     if (tag === 'hr') {
       out.push(new Paragraph({ border: { bottom: border() } })); continue
     }
-
     if (tag === 'h1') {
       out.push(new Paragraph({
         heading: HeadingLevel.HEADING_1,
@@ -89,17 +103,33 @@ function htmlToDocxParagraphs(html) {
       })); continue
     }
     if (tag === 'li') {
-      out.push(new Paragraph({
-        bullet: { level: 0 },
-        spacing: { after: S.bodyAfter },
-        children: styledRuns(inner, S.bodySize, S.bodyColor),
-      })); continue
+      const numMatch = attrs.match(/data-num="(\d+)"/)
+      if (numMatch) {
+        // Ordered list item — prepend number manually
+        out.push(new Paragraph({
+          spacing: { after: S.bodyAfter },
+          indent: { left: 360 },
+          children: [
+            new TextRun({ text: `${numMatch[1]}.\t`, font: 'Arial', size: S.bodySize, color: S.bodyColor }),
+            ...styledRuns(inner, S.bodySize, S.bodyColor),
+          ],
+        }))
+      } else {
+        out.push(new Paragraph({
+          bullet: { level: 0 },
+          spacing: { after: S.bodyAfter },
+          children: styledRuns(inner, S.bodySize, S.bodyColor),
+        }))
+      }
+      continue
     }
     // p / blockquote
-    out.push(new Paragraph({
-      spacing: { after: S.bodyAfter },
-      children: styledRuns(inner, S.bodySize, S.bodyColor),
-    }))
+    if (inner) {
+      out.push(new Paragraph({
+        spacing: { after: S.bodyAfter },
+        children: styledRuns(inner, S.bodySize, S.bodyColor),
+      }))
+    }
   }
 
   if (out.length === 0) {
