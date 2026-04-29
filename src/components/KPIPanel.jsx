@@ -1,6 +1,37 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 
+const OLE_BRUM_QUOTES = [
+  { quote: 'Man kan ikke tenke, ikke si nei og ikke like Pelsen-bjørn uten mat.', attribution: 'Ole Brum' },
+  { quote: 'Jeg er et bjørn med lite hjerne, og lange ord forvirrer meg.', attribution: 'Ole Brum' },
+  { quote: 'Vi er ikke mye, vi to. Men vi har hverandre.', attribution: 'Ole Brum' },
+  { quote: 'Noen ganger er den minste tingen det som tar mest plass i hjertet ditt.', attribution: 'A.A. Milne' },
+  { quote: 'Jeg hadde en dag i dag. Det var den beste slags.', attribution: 'Ole Brum' },
+  { quote: 'Det er ikke ingenting å gjøre ingenting. Det er å gjøre noe som fører til noe.', attribution: 'Ole Brum' },
+  { quote: 'Hvis det er en bjørn der, vil jeg sleppe den.', attribution: 'Ole Brum' },
+  { quote: 'Anta ikke alltid at den mest åpenbare veien er den rette.', attribution: 'Ole Brum' },
+  { quote: 'Ja, sa Ole Brum. Det er svaret. Hva er spørsmålet?', attribution: 'A.A. Milne' },
+  { quote: 'Noen ganger, hvis du står stille lenge nok, skjer noe.', attribution: 'Ole Brum' },
+  { quote: 'Det er så mye kjedeligere å ta en ting om gangen.', attribution: 'Tigern' },
+  { quote: 'En av de fineste tingene med venner er at man kan gjøre dumme ting med dem.', attribution: 'Ole Brum' },
+  { quote: 'Jeg er ikke vekk, jeg er bare et annet sted.', attribution: 'Ole Brum' },
+  { quote: 'Hvis folk visste mer om hva de tenkte på, ville de tenke mer på det de vet.', attribution: 'Ole Brum' },
+  { quote: 'Det er umulig å være sint på noen som liker honning.', attribution: 'Ole Brum' },
+]
+
+function OleBrumQuote() {
+  const [quote] = useState(() => OLE_BRUM_QUOTES[Math.floor(Math.random() * OLE_BRUM_QUOTES.length)])
+  return (
+    <div className="h-full flex flex-col items-center justify-center px-5 py-4 text-center">
+      <div className="text-4xl mb-4">🍯</div>
+      <p className="text-xl leading-relaxed text-gray-700 italic font-medium">
+        «{quote.quote}»
+      </p>
+      <p className="mt-4 text-base text-gray-400">— {quote.attribution}</p>
+    </div>
+  )
+}
+
 function KPIBox({ title, children, loading, empty }) {
   return (
     <div className="flex-1 flex flex-col bg-white rounded-xl shadow-sm overflow-hidden min-w-0">
@@ -149,13 +180,8 @@ function RisksTable({ userId }) {
 export default function KPIPanel({ userId }) {
   return (
     <div className="h-full flex gap-3">
-      <KPIBox title="KPI">
-        <div className="h-full flex items-center justify-center text-center text-gray-300">
-          <div>
-            <div className="text-3xl mb-1">📊</div>
-            <p className="text-xs">Defineres i neste iterasjon</p>
-          </div>
-        </div>
+      <KPIBox title="Dagens visdom">
+        <OleBrumQuote />
       </KPIBox>
 
       <TasksTable userId={userId} />

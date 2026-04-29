@@ -178,14 +178,23 @@ Alle elementer skal tilhøre én gruppe. Ingen tomme grupper.`
 
       const response = await anthropic.messages.create({
         model: 'claude-sonnet-4-6',
-        max_tokens: 4096,
+        max_tokens: 16000,
         messages: [{ role: 'user', content: prompt }],
       })
+
+      if (response.stop_reason === 'max_tokens') {
+        return res.status(500).json({ error: 'For mange elementer — prøv å rydde i mindre bolker.' })
+      }
 
       const raw = response.content[0].text.trim()
       let result
       try { result = JSON.parse(raw) }
-      catch { const m = raw.match(/\{[\s\S]*\}/); result = m ? JSON.parse(m[0]) : { merges: [], groups: [] } }
+      catch {
+        const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/)
+        const cleaned = fenced ? fenced[1].trim() : raw
+        const m = cleaned.match(/\{[\s\S]*\}/)
+        result = m ? JSON.parse(m[0]) : { merges: [], groups: [] }
+      }
 
       return res.json({ merges: result.merges ?? [], groups: result.groups ?? [] })
     } catch (err) {
@@ -262,6 +271,13 @@ Alle elementer skal tilhøre én gruppe. Ingen tomme grupper.`
 
     // ── Gjennomgangs-modus: kun identifiser oppgaver og risikoer ──
     if (isReview) {
+      const [existingTasksRes, existingRisksRes] = await Promise.all([
+        supabase.from('tasks').select('title').eq('folder_id', folderId).neq('status', 'completed'),
+        supabase.from('risks').select('title').eq('folder_id', folderId).neq('status', 'dismissed'),
+      ])
+      const existingTasks = (existingTasksRes.data ?? []).map(t => `- ${t.title}`).join('\n') || '(ingen)'
+      const existingRisks = (existingRisksRes.data ?? []).map(r => `- ${r.title}`).join('\n') || '(ingen)'
+
       const userMessage = `
 Mappe: ${folder.name}
 Formål: ${folder.purpose ?? '(ikke oppgitt)'}
@@ -272,7 +288,14 @@ AI-instruksjon: ${master.ai_instruction ?? '(ingen)'}
 Innhold:
 ${master.content || '(tomt)'}
 
-Gå gjennom dokumentet og identifiser nye oppgaver og risikoer. Returner JSON.`
+---
+Allerede registrerte oppgaver (skal IKKE foreslås på nytt):
+${existingTasks}
+
+Allerede registrerte risikoer (skal IKKE foreslås på nytt):
+${existingRisks}
+
+Gå gjennom dokumentet og identifiser KUN nye oppgaver og risikoer som ikke allerede er registrert. Returner JSON.`
 
       const response = await anthropic.messages.create({
         model: 'claude-sonnet-4-6',
