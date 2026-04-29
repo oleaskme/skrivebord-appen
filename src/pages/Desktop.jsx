@@ -13,6 +13,7 @@ export default function Desktop() {
   const [search, setSearch] = useState('')
   const [showNewFolder, setShowNewFolder] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [kaiaOpen, setKaiaOpen] = useState(false)
 
   const loadFolders = useCallback(async () => {
     const { data } = await supabase
@@ -93,10 +94,19 @@ export default function Desktop() {
             </div>
             Bytt bruker
           </button>
-          <div className="flex items-center gap-2 pl-2 border-l border-gray-100">
-            <img src={kaiaImg} alt="Kaia" className="w-10 h-10 rounded-full object-cover object-top shadow-sm" />
-            <span className="text-sm font-semibold text-gray-600">Kaia</span>
+          <div className="flex flex-col items-center pl-2 border-l border-gray-100 cursor-pointer group" onClick={() => setKaiaOpen(true)}>
+            <img src={kaiaImg} alt="Kaia" className="w-20 h-20 rounded-full object-cover object-top shadow-sm group-hover:ring-2 group-hover:ring-primary-300 transition-all" />
+            <span className="text-xs font-semibold text-gray-500 mt-1">Kaia</span>
           </div>
+          {kaiaOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={() => setKaiaOpen(false)}>
+              <div className="relative" onClick={e => e.stopPropagation()}>
+                <img src={kaiaImg} alt="Kaia" className="w-96 h-96 rounded-2xl object-cover object-top shadow-2xl" />
+                <p className="text-center text-white font-semibold mt-3 text-lg">Kaia</p>
+                <button onClick={() => setKaiaOpen(false)} className="absolute top-2 right-2 bg-black/40 text-white rounded-full w-8 h-8 flex items-center justify-center hover:bg-black/60 transition-colors">✕</button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
