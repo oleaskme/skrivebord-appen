@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useUser } from '../../context/UserContext'
 import { supabase } from '../../lib/supabase'
 import { api } from '../../lib/api'
@@ -11,7 +11,29 @@ const TABS = [
   { id: 'meeting', label: 'Møtereferat' },
   { id: 'email',   label: 'E-post (Gmail)' },
   { id: 'drive',   label: 'Drive-fil' },
+  { id: 'upload',  label: 'Last opp fil' },
 ]
+
+const SUPPORTED_EXTENSIONS = ['.txt', '.md', '.csv', '.html', '.docx']
+
+async function extractFileContent(file) {
+  const ext = '.' + file.name.split('.').pop().toLowerCase()
+  if (ext === '.docx') {
+    const mammoth = (await import('mammoth')).default
+    const arrayBuffer = await file.arrayBuffer()
+    const result = await mammoth.extractRawText({ arrayBuffer })
+    return result.value
+  }
+  if (['.txt', '.md', '.csv', '.html'].includes(ext)) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = e => resolve(e.target.result)
+      reader.onerror = () => reject(new Error('Kunne ikke lese filen'))
+      reader.readAsText(file, 'UTF-8')
+    })
+  }
+  throw new Error(`Filtypen "${ext}" støttes ikke. Støttede typer: ${SUPPORTED_EXTENSIONS.join(', ')}`)
+}
 
 async function checkDuplicate(folderId, hash, sourceId) {
   const { data } = await supabase
@@ -32,6 +54,8 @@ export default function NewInputModal({ folderId, onClose, onCreated }) {
   const [error, setError] = useState(null)
   const [showGmail, setShowGmail] = useState(false)
   const [showDrive, setShowDrive] = useState(false)
+  const [dragOver, setDragOver] = useState(false)
+  const fileInputRef = useRef(null)
 
   async function save(type, docTitle, docContent, sourceId, metadata = {}) {
     setSaving(true)
@@ -82,6 +106,19 @@ export default function NewInputModal({ folderId, onClose, onCreated }) {
       date: email.date,
       subject: email.subject,
     })
+  }
+
+  async function handleFileUpload(file) {
+    if (!file) return
+    setSaving(true)
+    setError(null)
+    try {
+      const content = await extractFileContent(file)
+      await save('upload', file.name, content, null, { fileName: file.name, fileSize: file.size })
+    } catch (err) {
+      setError(err.message)
+      setSaving(false)
+    }
   }
 
   async function handleDriveSelected(file) {
@@ -179,6 +216,31 @@ export default function NewInputModal({ folderId, onClose, onCreated }) {
               >
                 Åpne Drive
               </button>
+            </div>
+          )}
+
+          {tab === 'upload' && (
+            <div className="space-y-4">
+              <div
+                onDragOver={e => { e.preventDefault(); setDragOver(true) }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={e => { e.preventDefault(); setDragOver(false); handleFileUpload(e.dataTransfer.files[0]) }}
+                onClick={() => fileInputRef.current?.click()}
+                className={`border-2 border-dashed rounded-xl p-10 text-center cursor-pointer transition-colors ${dragOver ? 'border-primary-400 bg-primary-50' : 'border-gray-300 hover:border-primary-400 hover:bg-gray-50'}`}
+              >
+                <p className="text-2xl mb-2">📄</p>
+                <p className="text-gray-600 text-sm font-medium">Dra og slipp en fil her, eller klikk for å velge</p>
+                <p className="text-gray-400 text-xs mt-1">{SUPPORTED_EXTENSIONS.join(', ')}</p>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept={SUPPORTED_EXTENSIONS.join(',')}
+                  className="hidden"
+                  onChange={e => handleFileUpload(e.target.files[0])}
+                />
+              </div>
+              {saving && <p className="text-gray-400 text-sm text-center">Leser fil...</p>}
+              {error && <p className="text-red-500 text-sm">{error}</p>}
             </div>
           )}
         </div>
