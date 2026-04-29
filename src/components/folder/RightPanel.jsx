@@ -10,12 +10,16 @@ import { normalizeToHtml } from '../../lib/normalizeHtml'
 
 const TABS = [
   { id: 'doc',      label: 'Dokument' },
+  { id: 'changes',  label: 'Endringer' },
   { id: 'tasks',    label: 'Oppgaver' },
   { id: 'meetings', label: 'Møter' },
   { id: 'risks',    label: 'Risikoer' },
 ]
 
 const CHANGELOG_SEP = '--- Endringslogg ---'
+
+const SEV_LABEL = { high: 'Høy', medium: 'Middels', low: 'Lav' }
+const SEV_CLS   = { high: 'bg-red-100 text-red-700', medium: 'bg-yellow-100 text-yellow-700', low: 'bg-gray-100 text-gray-500' }
 
 function splitContent(raw) {
   const idx = (raw ?? '').indexOf(CHANGELOG_SEP)
@@ -28,11 +32,90 @@ function splitContent(raw) {
 
 const plainToHtml = normalizeToHtml
 
-const SEV_LABEL = { high: 'Høy', medium: 'Middels', low: 'Lav' }
-const SEV_CLS   = { high: 'bg-red-100 text-red-700', medium: 'bg-yellow-100 text-yellow-700', low: 'bg-gray-100 text-gray-500' }
+// ---- Endringer-panel ----
+function ChangesPanel({ reviewResult, approvedTasks, approvedRisks, onToggleTask, onToggleRisk, onSave, onDismiss, saving }) {
+  if (!reviewResult) {
+    return (
+      <div className="h-full flex items-center justify-center text-gray-300 flex-col gap-2">
+        <div className="text-4xl">🤖</div>
+        <p className="text-sm">Ingen AI-forslag ennå.</p>
+        <p className="text-xs text-gray-400">Forslag vises her etter at du lagrer dokumentet.</p>
+      </div>
+    )
+  }
+
+  const tasks = reviewResult.suggested_tasks ?? []
+  const risks = reviewResult.suggested_risks ?? []
+  const totalCount = tasks.length + risks.length
+  const selectedCount = approvedTasks.length + approvedRisks.length
+
+  return (
+    <div className="h-full flex flex-col overflow-hidden">
+      <div className="px-6 py-4 border-b border-gray-100 shrink-0 flex items-center justify-between">
+        <div>
+          <h3 className="font-semibold text-gray-800">AI-forslag</h3>
+          <p className="text-xs text-gray-400 mt-0.5">{totalCount} element{totalCount !== 1 ? 'er' : ''} funnet</p>
+        </div>
+        <button onClick={onDismiss} className="text-xs text-gray-400 hover:text-gray-600 border border-gray-200 rounded-lg px-3 py-1.5 transition-colors">
+          Ignorer alle
+        </button>
+      </div>
+      <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3">
+        {tasks.length > 0 && (
+          <div>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Oppgaver</p>
+            <div className="space-y-2">
+              {tasks.map((t, i) => (
+                <label key={`t${i}`} className="flex items-start gap-3 cursor-pointer p-3 rounded-lg border border-gray-100 hover:bg-gray-50 transition-colors">
+                  <input type="checkbox" checked={approvedTasks.includes(i)}
+                    onChange={() => onToggleTask(i)}
+                    className="w-4 h-4 accent-primary-500 shrink-0 mt-0.5" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-gray-700">{t.title}</p>
+                    {t.due_date && <p className="text-xs text-gray-400 mt-0.5">Frist: {t.due_date}</p>}
+                  </div>
+                  <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded font-medium shrink-0">Oppgave</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
+        {risks.length > 0 && (
+          <div>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Risikoer</p>
+            <div className="space-y-2">
+              {risks.map((r, i) => (
+                <label key={`r${i}`} className="flex items-start gap-3 cursor-pointer p-3 rounded-lg border border-gray-100 hover:bg-gray-50 transition-colors">
+                  <input type="checkbox" checked={approvedRisks.includes(i)}
+                    onChange={() => onToggleRisk(i)}
+                    className="w-4 h-4 accent-primary-500 shrink-0 mt-0.5" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-gray-700">{r.title}</p>
+                  </div>
+                  <span className={`text-xs px-2 py-0.5 rounded font-medium shrink-0 ${SEV_CLS[r.severity] ?? SEV_CLS.low}`}>
+                    {SEV_LABEL[r.severity] ?? 'Lav'}
+                  </span>
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+      <div className="px-6 py-4 border-t border-gray-100 shrink-0">
+        <button
+          onClick={onSave}
+          disabled={saving || selectedCount === 0}
+          className="w-full bg-primary-600 text-white text-sm rounded-lg py-2.5 font-semibold hover:bg-primary-700 disabled:opacity-50 transition-colors"
+        >
+          {saving ? 'Lagrer...' : `Lagre valgte (${selectedCount})`}
+        </button>
+      </div>
+    </div>
+  )
+}
 
 // ---- MASTER-visning ----
-function MasterViewer({ doc, folderId, onSaved }) {
+function MasterViewer({ doc, folderId, onSaved, onReviewResult }) {
   const { activeUser } = useUser()
   const initial = splitContent(doc.content)
   const [bodyHtml, setBodyHtml] = useState(plainToHtml(initial.body))
@@ -43,17 +126,12 @@ function MasterViewer({ doc, folderId, onSaved }) {
   const [uploadingDrive, setUploadingDrive] = useState(false)
   const [driveMsg, setDriveMsg] = useState(null)
   const [reviewing, setReviewing] = useState(false)
-  const [reviewResult, setReviewResult] = useState(null)
-  const [approvedTasks, setApprovedTasks] = useState([])
-  const [approvedRisks, setApprovedRisks] = useState([])
-  const [savingReview, setSavingReview] = useState(false)
 
   useEffect(() => {
     const parts = splitContent(doc.content)
     setBodyHtml(plainToHtml(parts.body))
     setChangelog(parts.changelog)
     setDirty(false)
-    setReviewResult(null)
   }, [doc.id, doc.content])
 
   function buildFullContent() {
@@ -69,13 +147,11 @@ function MasterViewer({ doc, folderId, onSaved }) {
     setSaving(false)
     setDirty(false)
     onSaved()
-    // Kjør AI-gjennomgang i bakgrunnen
     runReview()
   }
 
   async function runReview() {
     setReviewing(true)
-    setReviewResult(null)
     try {
       const res = await fetch('/api/ai/run', {
         method: 'POST',
@@ -85,30 +161,10 @@ function MasterViewer({ doc, folderId, onSaved }) {
       const data = await res.json()
       if (!res.ok) return
       if (data.suggested_tasks?.length || data.suggested_risks?.length) {
-        setReviewResult(data)
-        setApprovedTasks(data.suggested_tasks?.map((_, i) => i) ?? [])
-        setApprovedRisks(data.suggested_risks?.map((_, i) => i) ?? [])
+        onReviewResult(data)
       }
     } catch {}
     finally { setReviewing(false) }
-  }
-
-  async function handleSaveReview() {
-    setSavingReview(true)
-    const tasks = reviewResult.suggested_tasks ?? []
-    const risks = reviewResult.suggested_risks ?? []
-    if (approvedTasks.length > 0) {
-      await supabase.from('tasks').insert(
-        approvedTasks.map(i => ({ folder_id: folderId, title: tasks[i].title, due_date: tasks[i].due_date ?? null, ai_suggested: true }))
-      )
-    }
-    if (approvedRisks.length > 0) {
-      await supabase.from('risks').insert(
-        approvedRisks.map(i => ({ folder_id: folderId, title: risks[i].title, severity: risks[i].severity ?? 'medium', source_type: 'master', source_id: doc.id, status: 'confirmed' }))
-      )
-    }
-    setSavingReview(false)
-    setReviewResult(null)
   }
 
   async function handleDownloadDocx() {
@@ -194,43 +250,6 @@ function MasterViewer({ doc, folderId, onSaved }) {
             placeholder="Begynn å skrive MASTER-dokumentet her..."
           />
         </div>
-        {reviewResult && (
-          <div className="shrink-0 border border-primary-200 rounded-xl overflow-hidden bg-primary-50">
-            <div className="flex items-center justify-between px-4 py-2.5 bg-primary-100 border-b border-primary-200">
-              <p className="text-xs font-semibold text-primary-800">
-                🤖 AI fant {(reviewResult.suggested_tasks?.length ?? 0) + (reviewResult.suggested_risks?.length ?? 0)} nye elementer
-              </p>
-              <button onClick={() => setReviewResult(null)} className="text-primary-400 hover:text-primary-600 text-xs">Ignorer</button>
-            </div>
-            <div className="px-4 py-3 space-y-2">
-              {reviewResult.suggested_tasks?.map((t, i) => (
-                <label key={`t${i}`} className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" checked={approvedTasks.includes(i)}
-                    onChange={() => setApprovedTasks(prev => prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i])}
-                    className="w-3.5 h-3.5 accent-primary-500 shrink-0" />
-                  <span className="text-xs text-gray-700 flex-1">{t.title}</span>
-                  <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium shrink-0">Oppgave</span>
-                </label>
-              ))}
-              {reviewResult.suggested_risks?.map((r, i) => (
-                <label key={`r${i}`} className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" checked={approvedRisks.includes(i)}
-                    onChange={() => setApprovedRisks(prev => prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i])}
-                    className="w-3.5 h-3.5 accent-primary-500 shrink-0" />
-                  <span className="text-xs text-gray-700 flex-1">{r.title}</span>
-                  <span className={`text-xs px-1.5 py-0.5 rounded font-medium shrink-0 ${SEV_CLS[r.severity] ?? SEV_CLS.low}`}>
-                    {SEV_LABEL[r.severity] ?? 'Lav'}
-                  </span>
-                </label>
-              ))}
-              <button onClick={handleSaveReview} disabled={savingReview || (approvedTasks.length + approvedRisks.length === 0)}
-                className="w-full mt-1 bg-primary-600 text-white text-xs rounded-lg py-1.5 font-semibold hover:bg-primary-700 disabled:opacity-50 transition-colors">
-                {savingReview ? 'Lagrer...' : `Lagre valgte (${approvedTasks.length + approvedRisks.length})`}
-              </button>
-            </div>
-          </div>
-        )}
-
         {changelog.trim() && (
           <div className="shrink-0 border border-gray-100 rounded-lg overflow-hidden">
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-3 py-2 bg-gray-50 border-b border-gray-100">
@@ -303,15 +322,44 @@ function EmptyState() {
 // ---- Hoved-komponent ----
 export default function RightPanel({ selectedDoc, masterDocs, inputDocs, onMasterSaved, folderId, folderName }) {
   const [activeTab, setActiveTab] = useState('doc')
+  const [reviewResult, setReviewResult]     = useState(null)
+  const [approvedTasks, setApprovedTasks]   = useState([])
+  const [approvedRisks, setApprovedRisks]   = useState([])
+  const [savingReview, setSavingReview]     = useState(false)
 
-  // Bytt automatisk til Dokument-fanen når noe velges
   useEffect(() => { if (selectedDoc) setActiveTab('doc') }, [selectedDoc])
+
+  function handleReviewResult(data) {
+    setReviewResult(data)
+    setApprovedTasks(data.suggested_tasks?.map((_, i) => i) ?? [])
+    setApprovedRisks(data.suggested_risks?.map((_, i) => i) ?? [])
+  }
+
+  async function handleSaveReview() {
+    setSavingReview(true)
+    const tasks = reviewResult.suggested_tasks ?? []
+    const risks = reviewResult.suggested_risks ?? []
+    if (approvedTasks.length > 0) {
+      await supabase.from('tasks').insert(
+        approvedTasks.map(i => ({ folder_id: folderId, title: tasks[i].title, due_date: tasks[i].due_date ?? null, ai_suggested: true }))
+      )
+    }
+    if (approvedRisks.length > 0) {
+      await supabase.from('risks').insert(
+        approvedRisks.map(i => ({ folder_id: folderId, title: risks[i].title, severity: risks[i].severity ?? 'medium', source_type: 'master', source_id: selectedDoc?.id, status: 'confirmed' }))
+      )
+    }
+    setSavingReview(false)
+    setReviewResult(null)
+  }
 
   function renderDocContent() {
     if (!selectedDoc) return <EmptyState />
     if (selectedDoc.type === 'master') {
       const doc = masterDocs.find(d => d.id === selectedDoc.id)
-      return doc ? <MasterViewer key={doc.id} doc={doc} folderId={folderId} onSaved={onMasterSaved} /> : null
+      return doc
+        ? <MasterViewer key={doc.id} doc={doc} folderId={folderId} onSaved={onMasterSaved} onReviewResult={handleReviewResult} />
+        : null
     }
     if (selectedDoc.type === 'input') {
       const doc = inputDocs.find(d => d.id === selectedDoc.id)
@@ -319,6 +367,8 @@ export default function RightPanel({ selectedDoc, masterDocs, inputDocs, onMaste
     }
     return <EmptyState />
   }
+
+  const hasPendingChanges = !!reviewResult
 
   return (
     <div className="h-full flex flex-col overflow-hidden bg-white">
@@ -328,13 +378,16 @@ export default function RightPanel({ selectedDoc, masterDocs, inputDocs, onMaste
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`px-5 py-2 text-sm font-semibold rounded-t-lg transition-colors ${
+            className={`relative px-5 py-2 text-sm font-semibold rounded-t-lg transition-colors ${
               activeTab === tab.id
                 ? 'bg-white text-primary-700'
                 : 'text-slate-300 hover:text-white hover:bg-slate-600'
             }`}
           >
             {tab.label}
+            {tab.id === 'changes' && hasPendingChanges && (
+              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-orange-400 rounded-full" />
+            )}
           </button>
         ))}
       </div>
@@ -342,6 +395,18 @@ export default function RightPanel({ selectedDoc, masterDocs, inputDocs, onMaste
       {/* Fane-innhold */}
       <div className="flex-1 overflow-hidden">
         {activeTab === 'doc'      && renderDocContent()}
+        {activeTab === 'changes'  && (
+          <ChangesPanel
+            reviewResult={reviewResult}
+            approvedTasks={approvedTasks}
+            approvedRisks={approvedRisks}
+            onToggleTask={i => setApprovedTasks(prev => prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i])}
+            onToggleRisk={i => setApprovedRisks(prev => prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i])}
+            onSave={handleSaveReview}
+            onDismiss={() => setReviewResult(null)}
+            saving={savingReview}
+          />
+        )}
         {activeTab === 'tasks'    && <TasksPanel    folderId={folderId} folderName={folderName} />}
         {activeTab === 'meetings' && <MeetingsPanel folderId={folderId} />}
         {activeTab === 'risks'    && <RisksPanel    folderId={folderId} />}
