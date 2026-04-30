@@ -2,21 +2,14 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 
 const OLE_BRUM_QUOTES = [
-  { quote: 'Man kan ikke tenke, ikke si nei og ikke like Pelsen-bjørn uten mat.', attribution: 'Ole Brum' },
-  { quote: 'Jeg er et bjørn med lite hjerne, og lange ord forvirrer meg.', attribution: 'Ole Brum' },
-  { quote: 'Vi er ikke mye, vi to. Men vi har hverandre.', attribution: 'Ole Brum' },
-  { quote: 'Noen ganger er den minste tingen det som tar mest plass i hjertet ditt.', attribution: 'A.A. Milne' },
-  { quote: 'Jeg hadde en dag i dag. Det var den beste slags.', attribution: 'Ole Brum' },
-  { quote: 'Det er ikke ingenting å gjøre ingenting. Det er å gjøre noe som fører til noe.', attribution: 'Ole Brum' },
-  { quote: 'Hvis det er en bjørn der, vil jeg sleppe den.', attribution: 'Ole Brum' },
-  { quote: 'Anta ikke alltid at den mest åpenbare veien er den rette.', attribution: 'Ole Brum' },
-  { quote: 'Ja, sa Ole Brum. Det er svaret. Hva er spørsmålet?', attribution: 'A.A. Milne' },
-  { quote: 'Noen ganger, hvis du står stille lenge nok, skjer noe.', attribution: 'Ole Brum' },
-  { quote: 'Det er så mye kjedeligere å ta en ting om gangen.', attribution: 'Tigern' },
-  { quote: 'En av de fineste tingene med venner er at man kan gjøre dumme ting med dem.', attribution: 'Ole Brum' },
-  { quote: 'Jeg er ikke vekk, jeg er bare et annet sted.', attribution: 'Ole Brum' },
-  { quote: 'Hvis folk visste mer om hva de tenkte på, ville de tenke mer på det de vet.', attribution: 'Ole Brum' },
-  { quote: 'Det er umulig å være sint på noen som liker honning.', attribution: 'Ole Brum' },
+  { quote: 'Jeg er en bjørn med lite hjerne, og lange ord forvirrer meg.', attribution: 'Ole Brum — A.A. Milne, Ole Brums bok (1926)' },
+  { quote: 'Elver vet dette: det er ingen hast. Vi skal nok komme dit en dag.', attribution: 'A.A. Milne, Huset i Hundremeterskogen (1928)' },
+  { quote: 'Det er så mye hyggeligere når man er to.', attribution: 'Nille — A.A. Milne, Ole Brums bok (1926)' },
+  { quote: 'Noen bryr seg for mye. Jeg tror det kalles kjærlighet.', attribution: 'A.A. Milne, Huset i Hundremeterskogen (1928)' },
+  { quote: 'Folk sier at ingenting er umulig, men jeg gjør ingenting hver eneste dag.', attribution: 'Ole Brum — A.A. Milne' },
+  { quote: 'Ugress er også blomster, når man blir kjent med dem.', attribution: 'Iå — A.A. Milne, Ole Brums bok (1926)' },
+  { quote: 'Det er ikke mye av en hale, men jeg er ganske glad i den.', attribution: 'Iå — A.A. Milne, Ole Brums bok (1926)' },
+  { quote: 'Litt omtanke, litt hensyn til andre, gjør all forskjellen.', attribution: 'Iå — A.A. Milne, Ole Brums bok (1926)' },
 ]
 
 function OleBrumQuote() {
