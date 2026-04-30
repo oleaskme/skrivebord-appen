@@ -15,7 +15,7 @@ export default function LeftPanel({
   masterDocs, inputDocs,
   selectedDoc, onSelectDoc,
   onAddMaster, onAddInput,
-  onDeleteInput,
+  onDeleteInput, onDeleteMaster,
   selectedInputIds, onToggleInput,
   selectedMasterIds, onToggleMaster,
   onRunAI, aiLoading,
@@ -65,7 +65,7 @@ export default function LeftPanel({
               <div
                 key={doc.id}
                 onClick={() => selectMode ? onToggleMaster(doc.id) : onSelectDoc({ type: 'master', id: doc.id })}
-                className={`w-full text-left px-3 py-2.5 rounded-lg border transition-all cursor-pointer ${
+                className={`group w-full text-left px-3 py-2.5 rounded-lg border transition-all cursor-pointer ${
                   selectMode && isSelected
                     ? 'bg-primary-50 border-primary-300 ring-1 ring-primary-200'
                     : active
@@ -87,9 +87,19 @@ export default function LeftPanel({
                     <span className={`font-semibold text-sm truncate ${active ? 'text-primary-700' : isSelected ? 'text-primary-700' : 'text-gray-800'}`}>
                       {doc.name}
                     </span>
-                    <span className="text-xs text-slate-400 shrink-0 font-mono bg-slate-100 px-1.5 py-0.5 rounded">
-                      v{formatVersion(doc.version_major, doc.version_minor)}
-                    </span>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <span className="text-xs text-slate-400 font-mono bg-slate-100 px-1.5 py-0.5 rounded">
+                        v{formatVersion(doc.version_major, doc.version_minor)}
+                      </span>
+                      {!selectMode && (
+                        <button
+                          onClick={e => { e.stopPropagation(); onDeleteMaster(doc.id) }}
+                          className="opacity-0 group-hover:opacity-100 text-slate-300 hover:text-red-400 text-xs transition-opacity p-1"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
                 {doc.has_unresolved_track_changes && (

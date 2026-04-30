@@ -74,6 +74,13 @@ export default function FolderView() {
     if (selectedDoc?.id === inputId) setSelectedDoc(null)
   }
 
+  async function handleDeleteMaster(masterId) {
+    if (!confirm('Slett dette MASTER-dokumentet? Dette kan ikke angres.')) return
+    await supabase.from('master_documents').delete().eq('id', masterId)
+    setMasterDocs(prev => prev.filter(d => d.id !== masterId))
+    if (selectedDoc?.id === masterId) setSelectedDoc(null)
+  }
+
   function handleMasterCreated(doc) {
     setMasterDocs(prev => [...prev, doc])
     setSelectedDoc({ type: 'master', id: doc.id })
@@ -260,6 +267,7 @@ export default function FolderView() {
             onAddMaster={() => setShowNewMaster(true)}
             onAddInput={() => setShowNewInput(true)}
             onDeleteInput={handleDeleteInput}
+            onDeleteMaster={handleDeleteMaster}
             selectedInputIds={selectedInputIds}
             onToggleInput={handleToggleInput}
             selectedMasterIds={selectedMasterIds}
