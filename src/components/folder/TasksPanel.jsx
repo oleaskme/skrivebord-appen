@@ -43,6 +43,7 @@ export default function TasksPanel({ folderId, folderName, members = [] }) {
   const [applying, setApplying]   = useState(false)
   const [assessing, setAssessing] = useState(false)
   const [editingTask, setEditingTask] = useState(null)
+  const [renamingGroup, setRenamingGroup] = useState(null)
 
   const loadTasks = useCallback(async () => {
     const { data } = await supabase
@@ -131,6 +132,21 @@ export default function TasksPanel({ folderId, folderName, members = [] }) {
   async function handleEditSave(id, fields) {
     await supabase.from('tasks').update(fields).eq('id', id)
     setTasks(prev => prev.map(t => t.id === id ? { ...t, ...fields } : t))
+  }
+
+  async function handleRenameGroup(oldName, newName) {
+    const trimmed = newName.trim()
+    if (!trimmed || trimmed === oldName) { setRenamingGroup(null); return }
+    const ids = tasks.filter(t => t.group_name === oldName).map(t => t.id)
+    if (ids.length) await supabase.from('tasks').update({ group_name: trimmed }).in('id', ids)
+    setTasks(prev => prev.map(t => t.group_name === oldName ? { ...t, group_name: trimmed } : t))
+    setRenamingGroup(null)
+  }
+
+  async function handleDeleteGroup(name) {
+    const ids = tasks.filter(t => t.group_name === name).map(t => t.id)
+    if (ids.length) await supabase.from('tasks').update({ group_name: null }).in('id', ids)
+    setTasks(prev => prev.map(t => t.group_name === name ? { ...t, group_name: null } : t))
   }
 
   async function handleSync() {
@@ -291,14 +307,41 @@ export default function TasksPanel({ folderId, folderName, members = [] }) {
     if (ungrouped.length) entries.push(['Uten gruppe', ungrouped])
     return (
       <>
-        {entries.map(([name, items]) => (
-          <div key={name}>
-            <p className="text-base font-bold text-gray-600 uppercase tracking-wide mb-2">{name} ({items.length})</p>
-            <div className="space-y-2">
-              {sortByPriorityThenDue(items).map(t => <TaskItem key={t.id} task={t} members={members} onToggle={handleToggle} onDelete={handleDelete} onPriorityChange={handlePriorityChange} onEdit={() => setEditingTask(t)} />)}
+        {entries.map(([name, items]) => {
+          const isVirtual = name === 'Uten gruppe'
+          const isRenaming = renamingGroup?.oldName === name
+          return (
+            <div key={name}>
+              {isRenaming ? (
+                <form className="flex items-center gap-1.5 mb-2"
+                  onSubmit={e => { e.preventDefault(); handleRenameGroup(name, renamingGroup.newName) }}>
+                  <input autoFocus value={renamingGroup.newName}
+                    onChange={e => setRenamingGroup(r => ({ ...r, newName: e.target.value }))}
+                    className="border border-primary-300 rounded px-2 py-0.5 text-sm font-bold text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-400 w-44" />
+                  <button type="submit" className="text-xs text-primary-600 font-semibold hover:text-primary-800">Lagre</button>
+                  <button type="button" onClick={() => setRenamingGroup(null)} className="text-xs text-gray-400 hover:text-gray-600">Avbryt</button>
+                </form>
+              ) : (
+                <div className="flex items-center gap-2 mb-2 group/gh">
+                  <p className={`text-base font-bold uppercase tracking-wide ${isVirtual ? 'text-gray-400 italic' : 'text-gray-600'}`}>
+                    {name} ({items.length})
+                  </p>
+                  {!isVirtual && (
+                    <>
+                      <button onClick={() => setRenamingGroup({ oldName: name, newName: name })}
+                        className="opacity-0 group-hover/gh:opacity-100 text-xs text-gray-400 hover:text-primary-600 transition-all" title="Gi nytt navn">✎</button>
+                      <button onClick={() => handleDeleteGroup(name)}
+                        className="opacity-0 group-hover/gh:opacity-100 text-xs text-gray-400 hover:text-red-500 transition-all" title="Fjern gruppe">×</button>
+                    </>
+                  )}
+                </div>
+              )}
+              <div className="space-y-2">
+                {sortByPriorityThenDue(items).map(t => <TaskItem key={t.id} task={t} members={members} onToggle={handleToggle} onDelete={handleDelete} onPriorityChange={handlePriorityChange} onEdit={() => setEditingTask(t)} />)}
+              </div>
             </div>
-          </div>
-        ))}
+          )
+        })}
         {completed.length > 0 && (
           <div>
             <p className="text-base font-bold text-gray-400 uppercase tracking-wide mb-2">Fullført ({completed.length})</p>
@@ -476,6 +519,7 @@ export default function TasksPanel({ folderId, folderName, members = [] }) {
         <TaskEditModal
           task={editingTask}
           members={members}
+          groups={[...new Set(tasks.filter(t => t.group_name).map(t => t.group_name))].sort((a, b) => a.localeCompare(b, 'nb'))}
           onClose={() => setEditingTask(null)}
           onSave={handleEditSave}
           onDelete={handleDelete}
@@ -495,20 +539,23 @@ export default function TasksPanel({ folderId, folderName, members = [] }) {
   )
 }
 
-function TaskEditModal({ task, members, onClose, onSave, onDelete, onComplete, onReopen }) {
+function TaskEditModal({ task, members, groups, onClose, onSave, onDelete, onComplete, onReopen }) {
   const [title, setTitle]       = useState(task.title)
   const [dueDate, setDueDate]   = useState(task.due_date ?? '')
   const [priority, setPriority] = useState(task.priority ?? '')
   const [ownerId, setOwnerId]   = useState(task.owner_id ?? '')
+  const [group, setGroup]       = useState(task.group_name ?? '')
+  const [newGroup, setNewGroup] = useState('')
   const [saving, setSaving]     = useState(false)
   const [confirming, setConfirming] = useState(false)
   const [confirmingComplete, setConfirmingComplete] = useState(false)
   const isCompleted = task.status === 'completed'
+  const resolvedGroup = group === '__new__' ? newGroup.trim() : (group || null)
 
   async function handleSave() {
     if (!title.trim()) return
     setSaving(true)
-    await onSave(task.id, { title: title.trim(), due_date: dueDate || null, priority: priority || null, owner_id: ownerId || null })
+    await onSave(task.id, { title: title.trim(), due_date: dueDate || null, priority: priority || null, owner_id: ownerId || null, group_name: resolvedGroup || null })
     onClose()
   }
 
@@ -539,6 +586,20 @@ function TaskEditModal({ task, members, onClose, onSave, onDelete, onComplete, o
               <option value="medium">Medium</option>
               <option value="low">Lav</option>
             </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-600 mb-1">Gruppe</label>
+            <select value={group} onChange={e => setGroup(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400">
+              <option value="">— Ingen gruppe —</option>
+              {groups.map(g => <option key={g} value={g}>{g}</option>)}
+              <option value="__new__">+ Ny gruppe...</option>
+            </select>
+            {group === '__new__' && (
+              <input autoFocus type="text" placeholder="Navn på ny gruppe" value={newGroup}
+                onChange={e => setNewGroup(e.target.value)}
+                className="mt-2 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400" />
+            )}
           </div>
           {members.length > 0 && (
             <div>
