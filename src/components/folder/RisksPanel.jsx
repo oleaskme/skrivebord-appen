@@ -34,6 +34,8 @@ export default function RisksPanel({ folderId }) {
     setLoading(false)
   }, [folderId])
 
+  const [showClosed, setShowClosed] = useState(false)
+
   useEffect(() => { loadRisks() }, [loadRisks])
 
   async function handleConfirm(risk) {
@@ -44,6 +46,12 @@ export default function RisksPanel({ folderId }) {
   async function handleDismiss(risk) {
     await supabase.from('risks').update({ status: 'dismissed' }).eq('id', risk.id)
     setRisks(prev => prev.filter(r => r.id !== risk.id))
+  }
+
+  async function handleClose(risk) {
+    const closed_at = new Date().toISOString()
+    await supabase.from('risks').update({ status: 'closed', closed_at }).eq('id', risk.id)
+    setRisks(prev => prev.map(r => r.id === risk.id ? { ...r, status: 'closed', closed_at } : r))
   }
 
   async function handleAdd(e) {
@@ -119,6 +127,7 @@ export default function RisksPanel({ folderId }) {
   const proposed  = risks.filter(r => r.status === 'proposed')
   const confirmed = risks.filter(r => r.status === 'confirmed')
   const active    = [...proposed, ...confirmed]
+  const closed    = risks.filter(r => r.status === 'closed')
 
   function renderByPriority() {
     const byLevel = { high: [], medium: [], low: [] }
@@ -131,7 +140,7 @@ export default function RisksPanel({ folderId }) {
             {SEVERITY[sev].label} ({items.length})
           </p>
           <div className="space-y-2">
-            {items.map(r => <RiskItem key={r.id} risk={r} onConfirm={handleConfirm} onDismiss={handleDismiss} onEdit={() => setEditingRisk(r)} />)}
+            {items.map(r => <RiskItem key={r.id} risk={r} onConfirm={handleConfirm} onDismiss={handleDismiss} onClose={handleClose} onEdit={() => setEditingRisk(r)} />)}
           </div>
         </div>
       ))
@@ -261,10 +270,30 @@ export default function RisksPanel({ folderId }) {
       )}
 
       <div className="flex-1 overflow-y-auto px-6 py-4 space-y-5">
-        {risks.length === 0 && (
+        {active.length === 0 && closed.length === 0 && (
           <p className="text-gray-400 text-sm text-center py-8">Ingen risikoer registrert</p>
         )}
         {sortBy === 'priority' ? renderByPriority() : renderByGroup()}
+
+        {closed.length > 0 && (
+          <div>
+            <button
+              onClick={() => setShowClosed(v => !v)}
+              className="flex items-center gap-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2 hover:text-gray-600 transition-colors"
+            >
+              <span>{showClosed ? '▾' : '▸'}</span>
+              Lukkede risikoer ({closed.length})
+            </button>
+            {showClosed && (
+              <div className="space-y-2">
+                {closed
+                  .sort((a, b) => new Date(b.closed_at) - new Date(a.closed_at))
+                  .map(r => <RiskItem key={r.id} risk={r} onDismiss={handleDismiss} onEdit={() => setEditingRisk(r)} />)
+                }
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {editingRisk && (
@@ -273,17 +302,19 @@ export default function RisksPanel({ folderId }) {
           onClose={() => setEditingRisk(null)}
           onSave={handleEditSave}
           onDelete={handleDismiss}
+          onCloseRisk={handleClose}
         />
       )}
     </div>
   )
 }
 
-function RiskEditModal({ risk, onClose, onSave, onDelete }) {
+function RiskEditModal({ risk, onClose, onSave, onDelete, onCloseRisk }) {
   const [title, setTitle]       = useState(risk.title)
   const [severity, setSeverity] = useState(risk.severity ?? 'medium')
   const [saving, setSaving]     = useState(false)
   const [confirming, setConfirming] = useState(false)
+  const [confirmingClose, setConfirmingClose] = useState(false)
 
   async function handleSave() {
     if (!title.trim()) return
@@ -315,13 +346,28 @@ function RiskEditModal({ risk, onClose, onSave, onDelete }) {
             </select>
           </div>
         </div>
-        <div className="flex items-center gap-2 pt-2">
-          {!confirming ? (
-            <button onClick={() => setConfirming(true)}
-              className="text-sm text-red-400 hover:text-red-600 border border-red-200 rounded-lg px-3 py-2 transition-colors">
-              Avvis
-            </button>
-          ) : (
+        <div className="flex items-center gap-2 pt-2 flex-wrap">
+          {!confirming && !confirmingClose && (
+            <>
+              <button onClick={() => setConfirmingClose(true)}
+                className="text-sm text-green-600 hover:text-green-800 border border-green-200 rounded-lg px-3 py-2 transition-colors">
+                Lukk risiko
+              </button>
+              <button onClick={() => setConfirming(true)}
+                className="text-sm text-red-400 hover:text-red-600 border border-red-200 rounded-lg px-3 py-2 transition-colors">
+                Avvis
+              </button>
+            </>
+          )}
+          {confirmingClose && (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-500">Merk som lukket?</span>
+              <button onClick={() => { onCloseRisk(risk); onClose() }}
+                className="text-sm text-green-600 font-semibold hover:text-green-800">Ja, lukk</button>
+              <button onClick={() => setConfirmingClose(false)} className="text-sm text-gray-400 hover:text-gray-600">Avbryt</button>
+            </div>
+          )}
+          {confirming && (
             <div className="flex items-center gap-2">
               <span className="text-sm text-gray-500">Sikker?</span>
               <button onClick={() => { onDelete(risk); onClose() }}
@@ -341,32 +387,50 @@ function RiskEditModal({ risk, onClose, onSave, onDelete }) {
   )
 }
 
-function RiskItem({ risk, onConfirm, onDismiss, onEdit }) {
+function RiskItem({ risk, onConfirm, onDismiss, onClose, onEdit }) {
   const s = SEVERITY[risk.severity] ?? SEVERITY.medium
+  const isClosed = risk.status === 'closed'
   return (
-    <div onClick={onEdit} className={`p-3 border rounded-lg cursor-pointer hover:opacity-90 transition-opacity ${s.bg} ${s.border}`}>
+    <div
+      onClick={!isClosed ? onEdit : undefined}
+      className={`p-3 border rounded-lg transition-opacity ${isClosed ? 'opacity-60 bg-gray-50 border-gray-200' : `cursor-pointer hover:opacity-90 ${s.bg} ${s.border}`}`}
+    >
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-start gap-2 flex-1">
-          <span className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${s.dot}`} />
-          <p className={`text-sm font-medium ${s.text}`}>{risk.title}</p>
+          <span className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${isClosed ? 'bg-gray-400' : s.dot}`} />
+          <p className={`text-sm font-medium ${isClosed ? 'text-gray-500 line-through' : s.text}`}>{risk.title}</p>
         </div>
-        <span className={`text-xs font-semibold uppercase shrink-0 ${s.text}`}>{s.label}</span>
-      </div>
-      <div className="flex items-center gap-3 mt-2 ml-4">
-        {risk.status === 'proposed' && (
-          <button onClick={e => { e.stopPropagation(); onConfirm(risk) }}
-            className="text-xs text-green-600 hover:text-green-800 font-medium transition-colors">
-            ✓ Bekreft
-          </button>
-        )}
-        <button onClick={e => { e.stopPropagation(); onDismiss(risk) }}
-          className="text-xs text-gray-400 hover:text-red-500 transition-colors">
-          Avvis
-        </button>
-        <span className="text-xs text-gray-400">
-          {new Date(risk.identified_at).toLocaleDateString('nb-NO')}
-          {risk.source_type === 'manual' ? ' · Manuell' : ' · Kaia'}
+        <span className={`text-xs font-semibold uppercase shrink-0 ${isClosed ? 'text-gray-400' : s.text}`}>
+          {isClosed ? 'Lukket' : s.label}
         </span>
+      </div>
+      <div className="flex items-center gap-3 mt-2 ml-4 flex-wrap">
+        {isClosed ? (
+          <span className="text-xs text-gray-400">
+            Lukket {new Date(risk.closed_at).toLocaleString('nb-NO', { dateStyle: 'short', timeStyle: 'short' })}
+          </span>
+        ) : (
+          <>
+            {risk.status === 'proposed' && (
+              <button onClick={e => { e.stopPropagation(); onConfirm(risk) }}
+                className="text-xs text-green-600 hover:text-green-800 font-medium transition-colors">
+                ✓ Bekreft
+              </button>
+            )}
+            <button onClick={e => { e.stopPropagation(); onClose(risk) }}
+              className="text-xs text-green-500 hover:text-green-700 transition-colors">
+              Lukk
+            </button>
+            <button onClick={e => { e.stopPropagation(); onDismiss(risk) }}
+              className="text-xs text-gray-400 hover:text-red-500 transition-colors">
+              Avvis
+            </button>
+            <span className="text-xs text-gray-400">
+              {new Date(risk.identified_at).toLocaleDateString('nb-NO')}
+              {risk.source_type === 'manual' ? ' · Manuell' : ' · Kaia'}
+            </span>
+          </>
+        )}
       </div>
     </div>
   )

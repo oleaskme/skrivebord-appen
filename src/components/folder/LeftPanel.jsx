@@ -138,8 +138,12 @@ export default function LeftPanel({
           </div>
         </div>
 
-        {/* Kjør AI-knapp */}
-        {selectMode && (
+        {/* Kaia status / Kjør AI-knapp */}
+        {aiLoading ? (
+          <div className="px-3 py-2 bg-primary-600 border-b border-primary-700 shrink-0">
+            <p className="text-sm font-semibold text-white text-center">📖 Kaia leser og hjelper deg</p>
+          </div>
+        ) : selectMode && (
           <div className="px-3 py-2 bg-primary-50 border-b border-primary-100 shrink-0">
             {!canRunAI ? (
               <p className="text-xs text-primary-400 text-center">
@@ -155,9 +159,7 @@ export default function LeftPanel({
                 disabled={aiLoading}
                 className="w-full bg-primary-600 text-white rounded-lg py-2 text-sm font-semibold hover:bg-primary-700 disabled:opacity-60 transition-colors"
               >
-                {aiLoading
-                  ? '⏳ Kaia kjører...'
-                  : `🤖 Kjør Kaia (${selectedInputIds.length} input → ${selectedMasterIds.length} master)`}
+                {`🤖 Kjør Kaia (${selectedInputIds.length} input → ${selectedMasterIds.length} master)`}
               </button>
             )}
           </div>

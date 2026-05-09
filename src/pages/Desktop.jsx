@@ -15,6 +15,7 @@ export default function Desktop() {
   const [showNewFolder, setShowNewFolder] = useState(false)
   const [loading, setLoading] = useState(true)
   const [kaiaOpen, setKaiaOpen] = useState(false)
+  const [aboutOpen, setAboutOpen] = useState(false)
 
   const loadFolders = useCallback(async () => {
     const { data } = await supabase
@@ -95,6 +96,13 @@ export default function Desktop() {
             </div>
             Bytt bruker
           </button>
+          <button
+            onClick={() => setAboutOpen(true)}
+            className="flex flex-col items-center justify-center w-10 h-10 rounded-full border-2 border-primary-200 text-primary-500 hover:bg-primary-50 hover:border-primary-400 transition-colors font-bold text-lg"
+            title="Om skrivebordsappen"
+          >
+            ?
+          </button>
           <div className="flex flex-col items-center pl-2 border-l border-gray-100 cursor-pointer group" onClick={() => setKaiaOpen(true)}>
             <img src={kaiaImg} alt="Kaia" className="w-20 h-20 rounded-full object-cover object-top shadow-sm group-hover:ring-2 group-hover:ring-primary-300 transition-all" />
             <span className="text-xs font-semibold text-gray-500 mt-1">Kaia</span>
@@ -160,6 +168,8 @@ export default function Desktop() {
         />
       )}
 
+      {aboutOpen && <AboutModal onClose={() => setAboutOpen(false)} />}
+
       {/* Versjonsinformasjon */}
       <div className="fixed bottom-3 left-4 text-xs text-gray-300 select-none">
         {__COMMIT__} · {new Date(__BUILD_TIME__).toLocaleString('nb-NO', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
@@ -167,3 +177,121 @@ export default function Desktop() {
     </div>
   )
 }
+
+function AboutModal({ onClose }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+      <div
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-8 py-5 border-b border-gray-100">
+          <div>
+            <h2 className="text-xl font-bold text-gray-800">Om skrivebordsappen</h2>
+            <p className="text-sm text-gray-400 mt-0.5">Din AI-drevne arbeidsassistent</p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+        </div>
+
+        <div className="px-8 py-6 space-y-7">
+
+          {/* Hensikt */}
+          <section>
+            <h3 className="text-base font-bold text-primary-600 mb-2">Hva er skrivebordsappen?</h3>
+            <p className="text-sm text-gray-600 leading-relaxed">
+              Skrivebordsappen er et verktøy for deg som jobber med mange saker, kunder eller prosjekter og trenger å holde oversikt — uten å drukne i dokumenter og notater. Kaia, den innebygde AI-assistenten, leser og analyserer innkommende informasjon og kobler den opp mot dine egne retningslinjer, maler og instruksjoner. Du bestemmer hva som er viktig, Kaia passer på.
+            </p>
+          </section>
+
+          {/* Logikk */}
+          <section>
+            <h3 className="text-base font-bold text-primary-600 mb-3">Slik er logikken bygd opp</h3>
+            <div className="space-y-3">
+              <div className="flex gap-3">
+                <div className="w-7 h-7 rounded-full bg-primary-100 text-primary-600 flex items-center justify-center font-bold text-sm shrink-0 mt-0.5">M</div>
+                <div>
+                  <p className="text-sm font-semibold text-gray-700">Mapper</p>
+                  <p className="text-sm text-gray-500">Hver mappe representerer en sak, kunde eller et prosjekt. Alt som hører sammen ligger samlet på ett sted.</p>
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <div className="w-7 h-7 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-sm shrink-0 mt-0.5">★</div>
+                <div>
+                  <p className="text-sm font-semibold text-gray-700">Masterdokumenter</p>
+                  <p className="text-sm text-gray-500">Dette er din kunnskap og dine instruksjoner — kravspesifikasjoner, avtaler, retningslinjer eller maler. Kaia bruker disse som referansepunkt når hun leser nye dokumenter.</p>
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <div className="w-7 h-7 rounded-full bg-green-100 text-green-600 flex items-center justify-center font-bold text-sm shrink-0 mt-0.5">↓</div>
+                <div>
+                  <p className="text-sm font-semibold text-gray-700">Input-dokumenter</p>
+                  <p className="text-sm text-gray-500">Innkommende informasjon — møtenotater, e-poster, rapporter, vedlegg. Disse legges inn og analyseres av Kaia mot masterdokumentene.</p>
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <div className="w-7 h-7 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center font-bold text-sm shrink-0 mt-0.5">✦</div>
+                <div>
+                  <p className="text-sm font-semibold text-gray-700">Kaia analyserer</p>
+                  <p className="text-sm text-gray-500">Kaia leser input opp mot master og identifiserer oppgaver, risikoer og avvik. Hun foreslår hva du bør følge opp — du bekrefter, avviser eller lukker.</p>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* Bruksanvisning */}
+          <section>
+            <h3 className="text-base font-bold text-primary-600 mb-3">Slik bruker du appen</h3>
+            <ol className="space-y-2.5 text-sm text-gray-600">
+              <li className="flex gap-2.5">
+                <span className="font-bold text-primary-400 shrink-0">1.</span>
+                <span><span className="font-semibold text-gray-700">Opprett en mappe</span> for saken eller prosjektet du vil følge opp.</span>
+              </li>
+              <li className="flex gap-2.5">
+                <span className="font-bold text-primary-400 shrink-0">2.</span>
+                <span><span className="font-semibold text-gray-700">Legg til masterdokumenter</span> — last opp egne filer, lim inn tekst eller koble til Google Drive. Gi gjerne Kaia en instruksjon om hva hun skal se etter.</span>
+              </li>
+              <li className="flex gap-2.5">
+                <span className="font-bold text-primary-400 shrink-0">3.</span>
+                <span><span className="font-semibold text-gray-700">Legg inn input</span> når noe nytt skjer — et møte, en e-post, et vedlegg. Du kan skrive det selv eller hente fra Drive.</span>
+              </li>
+              <li className="flex gap-2.5">
+                <span className="font-bold text-primary-400 shrink-0">4.</span>
+                <span><span className="font-semibold text-gray-700">Kjør Kaia</span> ved å krysse av masterdokumenter og input-dokumenter, og trykk «Kjør Kaia». Hun analyserer og foreslår oppgaver og risikoer.</span>
+              </li>
+              <li className="flex gap-2.5">
+                <span className="font-bold text-primary-400 shrink-0">5.</span>
+                <span><span className="font-semibold text-gray-700">Behandle forslagene</span> i fanen for oppgaver og risikoer. Bekreft det som er relevant, avvis det som ikke er det, og lukk det som er håndtert.</span>
+              </li>
+              <li className="flex gap-2.5">
+                <span className="font-bold text-primary-400 shrink-0">6.</span>
+                <span><span className="font-semibold text-gray-700">Følg med på dashbordet</span> — øverst på skrivebordet ser du en samlet oversikt over aktive oppgaver og risikoer på tvers av alle mapper.</span>
+              </li>
+            </ol>
+          </section>
+
+          {/* Tips */}
+          <section className="bg-primary-50 border border-primary-100 rounded-xl px-5 py-4">
+            <p className="text-xs font-bold text-primary-600 uppercase tracking-wide mb-1.5">Tips</p>
+            <ul className="text-sm text-primary-700 space-y-1.5">
+              <li>— Jo tydeligere instruksjon du gir Kaia i masterdokumentet, jo mer presis blir analysen.</li>
+              <li>— Bruk «Kaia: Rydd og grupper» under risikoer for å slå sammen overlappende punkter.</li>
+              <li>— Lukkede risikoer og fullførte oppgaver forsvinner ikke — de arkiveres med dato og tidsstempel.</li>
+            </ul>
+          </section>
+
+        </div>
+
+        <div className="px-8 pb-6">
+          <button
+            onClick={onClose}
+            className="w-full bg-primary-500 text-white rounded-xl py-2.5 text-sm font-semibold hover:bg-primary-600 transition-colors"
+          >
+            Forstått, la meg jobbe!
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
