@@ -248,6 +248,32 @@ export default function RisksPanel({ folderId, members = [] }) {
     })
   }
 
+  function renderByOwner() {
+    const grouped = {}
+    const noOwner = []
+    for (const r of active) {
+      const m = members.find(m => m.user_id === r.owner_id)
+      const name = m?.users?.name
+      if (name) {
+        if (!grouped[name]) grouped[name] = []
+        grouped[name].push(r)
+      } else {
+        noOwner.push(r)
+      }
+    }
+    const entries = Object.entries(grouped).sort(([a], [b]) => a.localeCompare(b, 'nb'))
+    if (noOwner.length) entries.push(['Ikke tildelt', noOwner])
+    return entries.map(([name, items]) => (
+      <div key={name}>
+        <p className="text-sm font-bold text-gray-600 uppercase tracking-wide mb-2">{name} ({items.length})</p>
+        <div className="space-y-2">
+          {[...items].sort((a, b) => (SEV_ORDER[a.severity] ?? 2) - (SEV_ORDER[b.severity] ?? 2))
+            .map(r => <RiskItem key={r.id} risk={r} members={members} onConfirm={handleConfirm} onDismiss={handleDismiss} onClose={handleClose} onEdit={() => setEditingRisk(r)} />)}
+        </div>
+      </div>
+    ))
+  }
+
   if (loading) return <div className="p-6 text-gray-400 text-sm">Laster risikoer...</div>
 
   return (
@@ -268,6 +294,12 @@ export default function RisksPanel({ folderId, members = [] }) {
               className={`px-2.5 py-1.5 border-l border-gray-200 transition-colors ${sortBy === 'group' ? 'bg-primary-500 text-white' : 'text-gray-500 hover:bg-gray-50'}`}
             >
               Gruppe
+            </button>
+            <button
+              onClick={() => setSortBy('owner')}
+              className={`px-2.5 py-1.5 border-l border-gray-200 transition-colors ${sortBy === 'owner' ? 'bg-primary-500 text-white' : 'text-gray-500 hover:bg-gray-50'}`}
+            >
+              Ansvarlig
             </button>
           </div>
           <button onClick={handleCleanup} disabled={cleaning || risks.length < 2}
@@ -351,7 +383,7 @@ export default function RisksPanel({ folderId, members = [] }) {
         {active.length === 0 && closed.length === 0 && (
           <p className="text-gray-400 text-sm text-center py-8">Ingen risikoer registrert</p>
         )}
-        {sortBy === 'priority' ? renderByPriority() : renderByGroup()}
+        {sortBy === 'priority' ? renderByPriority() : sortBy === 'group' ? renderByGroup() : renderByOwner()}
 
         {closed.length > 0 && (
           <div>
@@ -546,7 +578,7 @@ function RiskItem({ risk, members, onConfirm, onDismiss, onClose, onEdit }) {
             </button>
             <span className="text-xs text-gray-400">
               {new Date(risk.identified_at).toLocaleDateString('nb-NO')}
-              {risk.source_type === 'manual' ? ' · Manuell' : ' · Kaia'}
+              {risk.source_type === 'manual' ? ' · Manuell' : ' · Fra Kaia'}
             </span>
           </>
         )}

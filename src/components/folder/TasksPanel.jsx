@@ -266,7 +266,7 @@ export default function TasksPanel({ folderId, folderName, members = [] }) {
           <div>
             <p className="text-base font-bold text-gray-400 uppercase tracking-wide mb-2">Fullført ({completed.length})</p>
             <div className="space-y-2">
-              {completed.map(t => <TaskItem key={t.id} task={t} onToggle={handleToggle} onDelete={handleDelete} onPriorityChange={handlePriorityChange} onEdit={() => setEditingTask(t)} />)}
+              {completed.map(t => <TaskItem key={t.id} task={t} members={members} onToggle={handleToggle} onDelete={handleDelete} onPriorityChange={handlePriorityChange} onEdit={() => setEditingTask(t)} />)}
             </div>
           </div>
         )}
@@ -293,7 +293,7 @@ export default function TasksPanel({ folderId, folderName, members = [] }) {
           <div key={name}>
             <p className="text-base font-bold text-gray-600 uppercase tracking-wide mb-2">{name} ({items.length})</p>
             <div className="space-y-2">
-              {sortByPriorityThenDue(items).map(t => <TaskItem key={t.id} task={t} onToggle={handleToggle} onDelete={handleDelete} onPriorityChange={handlePriorityChange} onEdit={() => setEditingTask(t)} />)}
+              {sortByPriorityThenDue(items).map(t => <TaskItem key={t.id} task={t} members={members} onToggle={handleToggle} onDelete={handleDelete} onPriorityChange={handlePriorityChange} onEdit={() => setEditingTask(t)} />)}
             </div>
           </div>
         ))}
@@ -301,7 +301,44 @@ export default function TasksPanel({ folderId, folderName, members = [] }) {
           <div>
             <p className="text-base font-bold text-gray-400 uppercase tracking-wide mb-2">Fullført ({completed.length})</p>
             <div className="space-y-2">
-              {completed.map(t => <TaskItem key={t.id} task={t} onToggle={handleToggle} onDelete={handleDelete} onPriorityChange={handlePriorityChange} onEdit={() => setEditingTask(t)} />)}
+              {completed.map(t => <TaskItem key={t.id} task={t} members={members} onToggle={handleToggle} onDelete={handleDelete} onPriorityChange={handlePriorityChange} onEdit={() => setEditingTask(t)} />)}
+            </div>
+          </div>
+        )}
+      </>
+    )
+  }
+
+  function renderByOwner() {
+    const grouped = {}
+    const noOwner = []
+    for (const t of open) {
+      const m = members.find(m => m.user_id === t.owner_id)
+      const name = m?.users?.name
+      if (name) {
+        if (!grouped[name]) grouped[name] = []
+        grouped[name].push(t)
+      } else {
+        noOwner.push(t)
+      }
+    }
+    const entries = Object.entries(grouped).sort(([a], [b]) => a.localeCompare(b, 'nb'))
+    if (noOwner.length) entries.push(['Ikke tildelt', noOwner])
+    return (
+      <>
+        {entries.map(([name, items]) => (
+          <div key={name}>
+            <p className="text-base font-bold text-gray-600 uppercase tracking-wide mb-2">{name} ({items.length})</p>
+            <div className="space-y-2">
+              {sortByPriorityThenDue(items).map(t => <TaskItem key={t.id} task={t} members={members} onToggle={handleToggle} onDelete={handleDelete} onPriorityChange={handlePriorityChange} onEdit={() => setEditingTask(t)} />)}
+            </div>
+          </div>
+        ))}
+        {completed.length > 0 && (
+          <div>
+            <p className="text-base font-bold text-gray-400 uppercase tracking-wide mb-2">Fullført ({completed.length})</p>
+            <div className="space-y-2">
+              {completed.map(t => <TaskItem key={t.id} task={t} members={members} onToggle={handleToggle} onDelete={handleDelete} onPriorityChange={handlePriorityChange} onEdit={() => setEditingTask(t)} />)}
             </div>
           </div>
         )}
@@ -328,6 +365,12 @@ export default function TasksPanel({ folderId, folderName, members = [] }) {
               className={`px-2.5 py-1.5 border-l border-gray-200 transition-colors ${sortBy === 'group' ? 'bg-primary-500 text-white' : 'text-gray-500 hover:bg-gray-50'}`}
             >
               Gruppe
+            </button>
+            <button
+              onClick={() => setSortBy('owner')}
+              className={`px-2.5 py-1.5 border-l border-gray-200 transition-colors ${sortBy === 'owner' ? 'bg-primary-500 text-white' : 'text-gray-500 hover:bg-gray-50'}`}
+            >
+              Ansvarlig
             </button>
           </div>
           <button onClick={handleAssessPriority} disabled={assessing || open.length === 0}
@@ -424,7 +467,7 @@ export default function TasksPanel({ folderId, folderName, members = [] }) {
         {tasks.length === 0 && (
           <p className="text-gray-400 text-sm text-center py-8">Ingen oppgaver ennå</p>
         )}
-        {sortBy === 'priority' ? renderByPriority() : renderByGroup()}
+        {sortBy === 'priority' ? renderByPriority() : sortBy === 'group' ? renderByGroup() : renderByOwner()}
       </div>
 
       {editingTask && (
@@ -522,7 +565,7 @@ function TaskEditModal({ task, members, onClose, onSave, onDelete }) {
   )
 }
 
-function TaskItem({ task, members, onToggle, onDelete, onPriorityChange, onEdit }) {
+function TaskItem({ task, members = [], onToggle, onDelete, onPriorityChange, onEdit }) {
   const isOverdue = task.due_date && task.status !== 'completed' && new Date(task.due_date) < new Date()
   const pri = PRIORITY[task.priority]
   return (
