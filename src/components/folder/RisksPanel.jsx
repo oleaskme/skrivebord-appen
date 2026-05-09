@@ -548,12 +548,9 @@ function RiskItem({ risk, members, onConfirm, onDismiss, onClose, onEdit }) {
           <span className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${isClosed ? 'bg-gray-400' : s.dot}`} />
           <p className={`text-sm font-medium ${isClosed ? 'text-gray-500 line-through' : s.text}`}>{risk.title}</p>
         </div>
-        <div className="flex items-center gap-1.5 shrink-0">
-          {risk.owner_id && <OwnerAvatar members={members} ownerId={risk.owner_id} />}
-          <span className={`text-xs font-semibold uppercase ${isClosed ? 'text-gray-400' : s.text}`}>
-            {isClosed ? 'Lukket' : s.label}
-          </span>
-        </div>
+        <span className={`text-xs font-semibold uppercase shrink-0 ${isClosed ? 'text-gray-400' : s.text}`}>
+          {isClosed ? 'Lukket' : s.label}
+        </span>
       </div>
       <div className="flex items-center gap-3 mt-2 ml-4 flex-wrap">
         {isClosed ? (
@@ -578,8 +575,12 @@ function RiskItem({ risk, members, onConfirm, onDismiss, onClose, onEdit }) {
             </button>
             <span className="text-xs text-gray-400">
               {new Date(risk.identified_at).toLocaleDateString('nb-NO')}
-              {risk.source_type === 'manual' ? ' · Manuell' : ' · Fra Kaia'}
             </span>
+            {risk.owner_id && (() => {
+              const m = members.find(m => m.user_id === risk.owner_id)
+              const name = m?.users?.name
+              return name ? <span className="text-xs text-gray-500 font-medium">Ansvarlig: {name}</span> : null
+            })()}
           </>
         )}
       </div>
