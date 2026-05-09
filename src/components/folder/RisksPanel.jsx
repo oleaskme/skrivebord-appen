@@ -22,6 +22,7 @@ export default function RisksPanel({ folderId }) {
   const [approvedMerges, setApprovedMerges] = useState([])
   const [applying, setApplying]   = useState(false)
   const [editingRisk, setEditingRisk] = useState(null)
+  const [renamingGroup, setRenamingGroup] = useState(null) // { oldName, newName }
 
   const loadRisks = useCallback(async () => {
     const { data } = await supabase
@@ -77,6 +78,21 @@ export default function RisksPanel({ folderId }) {
   async function handleEditSave(id, fields) {
     await supabase.from('risks').update(fields).eq('id', id)
     setRisks(prev => prev.map(r => r.id === id ? { ...r, ...fields } : r))
+  }
+
+  async function handleRenameGroup(oldName, newName) {
+    const trimmed = newName.trim()
+    if (!trimmed || trimmed === oldName) { setRenamingGroup(null); return }
+    const ids = risks.filter(r => r.group_name === oldName).map(r => r.id)
+    if (ids.length) await supabase.from('risks').update({ group_name: trimmed }).in('id', ids)
+    setRisks(prev => prev.map(r => r.group_name === oldName ? { ...r, group_name: trimmed } : r))
+    setRenamingGroup(null)
+  }
+
+  async function handleDeleteGroup(name) {
+    const ids = risks.filter(r => r.group_name === name).map(r => r.id)
+    if (ids.length) await supabase.from('risks').update({ group_name: null }).in('id', ids)
+    setRisks(prev => prev.map(r => r.group_name === name ? { ...r, group_name: null } : r))
   }
 
   async function handleCleanup() {
@@ -157,17 +173,61 @@ export default function RisksPanel({ folderId }) {
         ungrouped.push(r)
       }
     }
-    const entries = Object.entries(grouped).sort(([a], [b]) => a.localeCompare(b, 'nb'))
-    if (ungrouped.length) entries.push(['Uten gruppe', ungrouped])
-    return entries.map(([name, items]) => (
-      <div key={name}>
-        <p className="text-base font-bold text-gray-600 uppercase tracking-wide mb-2">{name} ({items.length})</p>
-        <div className="space-y-2">
-          {[...items].sort((a, b) => (SEV_ORDER[a.severity] ?? 2) - (SEV_ORDER[b.severity] ?? 2))
-            .map(r => <RiskItem key={r.id} risk={r} onConfirm={handleConfirm} onDismiss={handleDismiss} onEdit={() => setEditingRisk(r)} />)}
+    const groupNames = Object.keys(grouped).sort((a, b) => a.localeCompare(b, 'nb'))
+    const allGroups = [...groupNames, ...(ungrouped.length ? ['Uten gruppe'] : [])]
+
+    return allGroups.map(name => {
+      const items = name === 'Uten gruppe' ? ungrouped : grouped[name]
+      const isVirtual = name === 'Uten gruppe'
+      const isRenaming = renamingGroup?.oldName === name
+      return (
+        <div key={name}>
+          {isRenaming ? (
+            <form
+              className="flex items-center gap-1.5 mb-2"
+              onSubmit={e => { e.preventDefault(); handleRenameGroup(name, renamingGroup.newName) }}
+            >
+              <input
+                autoFocus
+                value={renamingGroup.newName}
+                onChange={e => setRenamingGroup(r => ({ ...r, newName: e.target.value }))}
+                className="border border-primary-300 rounded px-2 py-0.5 text-sm font-bold text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-400 w-44"
+              />
+              <button type="submit" className="text-xs text-primary-600 font-semibold hover:text-primary-800">Lagre</button>
+              <button type="button" onClick={() => setRenamingGroup(null)} className="text-xs text-gray-400 hover:text-gray-600">Avbryt</button>
+            </form>
+          ) : (
+            <div className="flex items-center gap-2 mb-2 group/gh">
+              <p className={`text-sm font-bold uppercase tracking-wide ${isVirtual ? 'text-gray-400 italic' : 'text-gray-600'}`}>
+                {name} ({items.length})
+              </p>
+              {!isVirtual && (
+                <>
+                  <button
+                    onClick={() => setRenamingGroup({ oldName: name, newName: name })}
+                    className="opacity-0 group-hover/gh:opacity-100 text-xs text-gray-400 hover:text-primary-600 transition-all"
+                    title="Gi nytt navn"
+                  >
+                    ✎
+                  </button>
+                  <button
+                    onClick={() => handleDeleteGroup(name)}
+                    className="opacity-0 group-hover/gh:opacity-100 text-xs text-gray-400 hover:text-red-500 transition-all"
+                    title="Fjern gruppe (risikoene beholdes)"
+                  >
+                    ×
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+          <div className="space-y-2">
+            {[...items].sort((a, b) => (SEV_ORDER[a.severity] ?? 2) - (SEV_ORDER[b.severity] ?? 2))
+              .map(r => <RiskItem key={r.id} risk={r} onConfirm={handleConfirm} onDismiss={handleDismiss} onClose={handleClose} onEdit={() => setEditingRisk(r)} />)}
+          </div>
         </div>
-      </div>
-    ))
+      )
+    })
   }
 
   if (loading) return <div className="p-6 text-gray-400 text-sm">Laster risikoer...</div>
@@ -299,6 +359,7 @@ export default function RisksPanel({ folderId }) {
       {editingRisk && (
         <RiskEditModal
           risk={editingRisk}
+          groups={[...new Set(risks.filter(r => r.group_name).map(r => r.group_name))].sort((a, b) => a.localeCompare(b, 'nb'))}
           onClose={() => setEditingRisk(null)}
           onSave={handleEditSave}
           onDelete={handleDismiss}
@@ -309,17 +370,21 @@ export default function RisksPanel({ folderId }) {
   )
 }
 
-function RiskEditModal({ risk, onClose, onSave, onDelete, onCloseRisk }) {
+function RiskEditModal({ risk, groups, onClose, onSave, onDelete, onCloseRisk }) {
   const [title, setTitle]       = useState(risk.title)
   const [severity, setSeverity] = useState(risk.severity ?? 'medium')
+  const [group, setGroup]       = useState(risk.group_name ?? '')
+  const [newGroup, setNewGroup] = useState('')
   const [saving, setSaving]     = useState(false)
   const [confirming, setConfirming] = useState(false)
   const [confirmingClose, setConfirmingClose] = useState(false)
 
+  const resolvedGroup = group === '__new__' ? newGroup.trim() : (group || null)
+
   async function handleSave() {
     if (!title.trim()) return
     setSaving(true)
-    await onSave(risk.id, { title: title.trim(), severity })
+    await onSave(risk.id, { title: title.trim(), severity, group_name: resolvedGroup || null })
     onClose()
   }
 
@@ -344,6 +409,25 @@ function RiskEditModal({ risk, onClose, onSave, onDelete, onCloseRisk }) {
               <option value="medium">Middels</option>
               <option value="low">Lav</option>
             </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-600 mb-1">Gruppe</label>
+            <select value={group} onChange={e => setGroup(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400">
+              <option value="">— Ingen gruppe —</option>
+              {groups.map(g => <option key={g} value={g}>{g}</option>)}
+              <option value="__new__">+ Ny gruppe...</option>
+            </select>
+            {group === '__new__' && (
+              <input
+                autoFocus
+                type="text"
+                placeholder="Navn på ny gruppe"
+                value={newGroup}
+                onChange={e => setNewGroup(e.target.value)}
+                className="mt-2 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400"
+              />
+            )}
           </div>
         </div>
         <div className="flex items-center gap-2 pt-2 flex-wrap">
