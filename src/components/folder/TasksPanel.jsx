@@ -586,7 +586,7 @@ function TaskItem({ task, members = [], onToggle, onDelete, onPriorityChange, on
               {isOverdue ? '⚠ ' : ''}Frist: {new Date(task.due_date).toLocaleDateString('nb-NO')}
             </p>
           )}
-          {task.ai_suggested && <span className="text-xs text-purple-400">Kaia-foreslått</span>}
+
           {task.owner_id && (() => {
             const m = members.find(m => m.user_id === task.owner_id)
             const name = m?.users?.name
