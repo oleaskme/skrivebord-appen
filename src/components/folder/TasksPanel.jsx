@@ -479,19 +479,31 @@ export default function TasksPanel({ folderId, folderName, members = [] }) {
           onClose={() => setEditingTask(null)}
           onSave={handleEditSave}
           onDelete={handleDelete}
+          onComplete={async (task) => {
+            const completed_at = new Date().toISOString()
+            const completed_by = activeUser.id
+            await supabase.from('tasks').update({ status: 'completed', completed_at, completed_by }).eq('id', task.id)
+            setTasks(prev => prev.map(t => t.id === task.id ? { ...t, status: 'completed', completed_at, completed_by } : t))
+          }}
+          onReopen={async (task) => {
+            await supabase.from('tasks').update({ status: 'open', completed_at: null, completed_by: null }).eq('id', task.id)
+            setTasks(prev => prev.map(t => t.id === task.id ? { ...t, status: 'open', completed_at: null, completed_by: null } : t))
+          }}
         />
       )}
     </div>
   )
 }
 
-function TaskEditModal({ task, members, onClose, onSave, onDelete }) {
+function TaskEditModal({ task, members, onClose, onSave, onDelete, onComplete, onReopen }) {
   const [title, setTitle]       = useState(task.title)
   const [dueDate, setDueDate]   = useState(task.due_date ?? '')
   const [priority, setPriority] = useState(task.priority ?? '')
   const [ownerId, setOwnerId]   = useState(task.owner_id ?? '')
   const [saving, setSaving]     = useState(false)
   const [confirming, setConfirming] = useState(false)
+  const [confirmingComplete, setConfirmingComplete] = useState(false)
+  const isCompleted = task.status === 'completed'
 
   async function handleSave() {
     if (!title.trim()) return
@@ -541,13 +553,35 @@ function TaskEditModal({ task, members, onClose, onSave, onDelete }) {
             </div>
           )}
         </div>
-        <div className="flex items-center gap-2 pt-2">
-          {!confirming ? (
-            <button onClick={() => setConfirming(true)}
-              className="text-sm text-red-400 hover:text-red-600 border border-red-200 rounded-lg px-3 py-2 transition-colors">
-              Slett
-            </button>
-          ) : (
+        <div className="flex items-center gap-2 pt-2 flex-wrap">
+          {!confirming && !confirmingComplete && (
+            <>
+              {isCompleted ? (
+                <button onClick={() => { onReopen(task); onClose() }}
+                  className="text-sm text-blue-500 hover:text-blue-700 border border-blue-200 rounded-lg px-3 py-2 transition-colors">
+                  Gjenåpne
+                </button>
+              ) : (
+                <button onClick={() => setConfirmingComplete(true)}
+                  className="text-sm text-green-600 hover:text-green-800 border border-green-200 rounded-lg px-3 py-2 transition-colors">
+                  Ferdigstill
+                </button>
+              )}
+              <button onClick={() => setConfirming(true)}
+                className="text-sm text-red-400 hover:text-red-600 border border-red-200 rounded-lg px-3 py-2 transition-colors">
+                Slett
+              </button>
+            </>
+          )}
+          {confirmingComplete && (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-500">Merk som ferdig?</span>
+              <button onClick={() => { onComplete(task); onClose() }}
+                className="text-sm text-green-600 font-semibold hover:text-green-800">Ja, ferdigstill</button>
+              <button onClick={() => setConfirmingComplete(false)} className="text-sm text-gray-400 hover:text-gray-600">Avbryt</button>
+            </div>
+          )}
+          {confirming && (
             <div className="flex items-center gap-2">
               <span className="text-sm text-gray-500">Sikker?</span>
               <button onClick={() => { onDelete(task); onClose() }}
@@ -572,11 +606,7 @@ function TaskItem({ task, members = [], onToggle, onDelete, onPriorityChange, on
   const pri = PRIORITY[task.priority]
   return (
     <div onClick={onEdit}
-      className="flex items-center gap-3 p-3 border border-gray-100 rounded-lg hover:border-primary-200 hover:bg-primary-50 group transition-colors cursor-pointer">
-      <span onClick={e => e.stopPropagation()} className="shrink-0 flex items-center">
-        <input type="checkbox" checked={task.status === 'completed'} onChange={e => { e.stopPropagation(); onToggle(task) }}
-          className="w-4 h-4 accent-primary-500" />
-      </span>
+      className={`flex items-center gap-3 p-3 border rounded-lg hover:border-primary-200 hover:bg-primary-50 transition-colors cursor-pointer ${task.status === 'completed' ? 'border-gray-100 opacity-60' : 'border-gray-100'}`}>
       <div className="flex-1 min-w-0">
         <p className={`text-sm ${task.status === 'completed' ? 'line-through text-gray-400' : 'text-gray-800'}`}>
           {task.title}
