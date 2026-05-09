@@ -573,9 +573,10 @@ function TaskItem({ task, members = [], onToggle, onDelete, onPriorityChange, on
   return (
     <div onClick={onEdit}
       className="flex items-center gap-3 p-3 border border-gray-100 rounded-lg hover:border-primary-200 hover:bg-primary-50 group transition-colors cursor-pointer">
-      <input type="checkbox" checked={task.status === 'completed'} onChange={() => onToggle(task)}
-        onClick={e => e.stopPropagation()}
-        className="w-4 h-4 accent-primary-500 shrink-0" />
+      <span onClick={e => e.stopPropagation()} className="shrink-0 flex items-center">
+        <input type="checkbox" checked={task.status === 'completed'} onChange={e => { e.stopPropagation(); onToggle(task) }}
+          className="w-4 h-4 accent-primary-500" />
+      </span>
       <div className="flex-1 min-w-0">
         <p className={`text-sm ${task.status === 'completed' ? 'line-through text-gray-400' : 'text-gray-800'}`}>
           {task.title}
