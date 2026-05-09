@@ -1,11 +1,13 @@
 import { useNavigate, useParams } from 'react-router-dom'
 import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
+import { useUser } from '../context/UserContext'
 import LeftPanel from '../components/folder/LeftPanel'
 import RightPanel from '../components/folder/RightPanel'
 import NewMasterModal from '../components/folder/NewMasterModal'
 import NewInputModal from '../components/folder/NewInputModal'
 import AIReviewModal from '../components/folder/AIReviewModal'
+import ParticipantsBar from '../components/folder/ParticipantsBar'
 
 const STATUS_OPTIONS = [
   { value: 'active',   label: 'Aktiv' },
@@ -16,10 +18,12 @@ const STATUS_OPTIONS = [
 export default function FolderView() {
   const { folderId } = useParams()
   const navigate = useNavigate()
+  const { activeUser, users } = useUser()
 
   const [folder, setFolder] = useState(null)
   const [masterDocs, setMasterDocs] = useState([])
   const [inputDocs, setInputDocs] = useState([])
+  const [members, setMembers] = useState([])
   const [selectedDoc, setSelectedDoc] = useState(null)
   const [loading, setLoading] = useState(true)
 
@@ -38,10 +42,11 @@ export default function FolderView() {
   const [search, setSearch] = useState('')
 
   const loadAll = useCallback(async () => {
-    const [folderRes, masterRes, inputRes] = await Promise.all([
+    const [folderRes, masterRes, inputRes, membersRes] = await Promise.all([
       supabase.from('folders').select('*').eq('id', folderId).single(),
       supabase.from('master_documents').select('*').eq('folder_id', folderId).order('created_at'),
       supabase.from('input_documents').select('*').eq('folder_id', folderId).order('created_at', { ascending: false }),
+      supabase.from('folder_members').select('user_id, role, users(name)').eq('folder_id', folderId),
     ])
     if (folderRes.data) {
       setFolder(folderRes.data)
@@ -49,6 +54,7 @@ export default function FolderView() {
     }
     setMasterDocs(masterRes.data ?? [])
     setInputDocs(inputRes.data ?? [])
+    setMembers(membersRes.data ?? [])
     setLoading(false)
   }, [folderId])
 
@@ -229,6 +235,16 @@ export default function FolderView() {
             </button>
           )}
         </div>
+
+        {/* Deltakere */}
+        <ParticipantsBar
+          members={members}
+          folderId={folderId}
+          currentUserId={activeUser.id}
+          allUsers={users}
+          isOwner={members.some(m => m.user_id === activeUser.id && m.role === 'owner')}
+          onMembersChanged={loadAll}
+        />
 
         {/* Status */}
         <div className="relative shrink-0">

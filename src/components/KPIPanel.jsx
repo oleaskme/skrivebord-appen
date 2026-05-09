@@ -48,8 +48,11 @@ function TasksTable({ userId }) {
 
   useEffect(() => {
     async function load() {
+      const { data: memberships } = await supabase
+        .from('folder_members').select('folder_id').eq('user_id', userId)
+      if (!memberships?.length) { setLoading(false); return }
       const { data: folders } = await supabase
-        .from('folders').select('id, name').eq('user_id', userId)
+        .from('folders').select('id, name').in('id', memberships.map(m => m.folder_id))
       if (!folders?.length) { setLoading(false); return }
 
       const { data } = await supabase
@@ -112,8 +115,11 @@ function RisksTable({ userId }) {
 
   useEffect(() => {
     async function load() {
+      const { data: memberships } = await supabase
+        .from('folder_members').select('folder_id').eq('user_id', userId)
+      if (!memberships?.length) { setLoading(false); return }
       const { data: folders } = await supabase
-        .from('folders').select('id, name').eq('user_id', userId)
+        .from('folders').select('id, name').in('id', memberships.map(m => m.folder_id))
       if (!folders?.length) { setLoading(false); return }
 
       const { data } = await supabase

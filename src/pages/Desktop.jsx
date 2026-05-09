@@ -9,19 +9,27 @@ import kaiaImg from '../assets/kaia.png'
 import kaiaVideo from '../assets/Kaia AI med lyd.mov'
 
 export default function Desktop() {
-  const { activeUser, clearUser } = useUser()
+  const { activeUser, users, isAdmin, clearUser, deleteUser } = useUser()
   const [folders, setFolders] = useState([])
+  const [memberships, setMemberships] = useState([])
   const [search, setSearch] = useState('')
   const [showNewFolder, setShowNewFolder] = useState(false)
+  const [showAdmin, setShowAdmin] = useState(false)
   const [loading, setLoading] = useState(true)
   const [kaiaOpen, setKaiaOpen] = useState(false)
   const [aboutOpen, setAboutOpen] = useState(false)
 
   const loadFolders = useCallback(async () => {
+    const { data: mems } = await supabase
+      .from('folder_members')
+      .select('folder_id, role')
+      .eq('user_id', activeUser.id)
+    if (!mems?.length) { setFolders([]); setMemberships([]); setLoading(false); return }
+    setMemberships(mems)
     const { data } = await supabase
       .from('folders')
       .select('*')
-      .eq('user_id', activeUser.id)
+      .in('id', mems.map(m => m.folder_id))
       .order('last_activity_at', { ascending: false })
     setFolders(data ?? [])
     setLoading(false)
@@ -39,6 +47,8 @@ export default function Desktop() {
       .single()
     if (error) throw error
 
+    await supabase.from('folder_members').insert({ folder_id: folder.id, user_id: activeUser.id, role: 'owner' })
+
     if (masters.length > 0) {
       const masterRows = masters
         .filter(m => m.name.trim())
@@ -54,12 +64,14 @@ export default function Desktop() {
       }
     }
 
+    setMemberships(prev => [...prev, { folder_id: folder.id, role: 'owner' }])
     setFolders(prev => [folder, ...prev])
   }
 
   async function handleDeleteFolder(folderId) {
     await supabase.from('folders').delete().eq('id', folderId)
     setFolders(prev => prev.filter(f => f.id !== folderId))
+    setMemberships(prev => prev.filter(m => m.folder_id !== folderId))
   }
 
   const filtered = folders.filter(f =>
@@ -87,6 +99,15 @@ export default function Desktop() {
         </div>
         <div className="flex items-center gap-3">
           <GoogleConnectButton />
+          {isAdmin && (
+            <button
+              onClick={() => setShowAdmin(true)}
+              className="text-sm text-gray-500 hover:text-gray-800 border border-gray-200 rounded-lg px-3 py-2 transition-colors"
+              title="Administrer brukere"
+            >
+              ⚙ Brukere
+            </button>
+          )}
           <button
             onClick={clearUser}
             className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-800 border border-gray-200 rounded-lg px-4 py-2 transition-colors"
@@ -154,6 +175,7 @@ export default function Desktop() {
               <FolderCard
                 key={folder.id}
                 folder={folder}
+                isOwner={memberships.some(m => m.folder_id === folder.id && m.role === 'owner')}
                 onDelete={handleDeleteFolder}
               />
             ))}
@@ -169,6 +191,14 @@ export default function Desktop() {
       )}
 
       {aboutOpen && <AboutModal onClose={() => setAboutOpen(false)} />}
+      {showAdmin && (
+        <AdminUsersModal
+          users={users}
+          activeUserId={activeUser.id}
+          onClose={() => setShowAdmin(false)}
+          onDelete={deleteUser}
+        />
+      )}
 
       {/* Versjonsinformasjon */}
       <div className="fixed bottom-3 left-4 text-xs text-gray-300 select-none">
@@ -289,6 +319,67 @@ function AboutModal({ onClose }) {
           >
             Forstått, la meg jobbe!
           </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function AdminUsersModal({ users, activeUserId, onClose, onDelete }) {
+  const [confirming, setConfirming] = useState(null)
+  const [deleting, setDeleting] = useState(false)
+
+  async function handleDelete(userId) {
+    setDeleting(true)
+    try {
+      await onDelete(userId)
+      setConfirming(null)
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+          <h2 className="font-bold text-gray-800">Brukere</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">✕</button>
+        </div>
+        <div className="px-6 py-4 space-y-2 max-h-[60vh] overflow-y-auto">
+          {users.map(user => (
+            <div key={user.id} className="flex items-center gap-3 py-2 border-b border-gray-50 last:border-0">
+              <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center text-primary-600 font-semibold text-sm shrink-0">
+                {user.name.charAt(0).toUpperCase()}
+              </div>
+              <span className="flex-1 text-sm font-medium text-gray-700">{user.name}</span>
+              {user.is_admin && (
+                <span className="text-xs text-amber-600 font-semibold bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">Admin</span>
+              )}
+              {!user.is_admin && user.id !== activeUserId && (
+                confirming === user.id ? (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-500">Sikker?</span>
+                    <button
+                      disabled={deleting}
+                      onClick={() => handleDelete(user.id)}
+                      className="text-xs text-red-500 font-semibold hover:text-red-700"
+                    >
+                      Ja, slett
+                    </button>
+                    <button onClick={() => setConfirming(null)} className="text-xs text-gray-400 hover:text-gray-600">Avbryt</button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setConfirming(user.id)}
+                    className="text-xs text-red-400 hover:text-red-600 border border-red-200 rounded px-2 py-0.5 transition-colors"
+                  >
+                    Slett
+                  </button>
+                )
+              )}
+            </div>
+          ))}
         </div>
       </div>
     </div>

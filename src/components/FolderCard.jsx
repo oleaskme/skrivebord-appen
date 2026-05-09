@@ -29,7 +29,7 @@ function formatDate(iso) {
   return new Date(iso).toLocaleDateString('nb-NO', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
-export default function FolderCard({ folder, onDelete }) {
+export default function FolderCard({ folder, isOwner, onDelete }) {
   const navigate = useNavigate()
   const [menuOpen, setMenuOpen] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -68,11 +68,16 @@ export default function FolderCard({ folder, onDelete }) {
         <h3 className="font-semibold text-xl text-gray-900 mb-1 truncate">{folder.name}</h3>
         <p className="text-base text-gray-400">Sist aktiv: {formatDate(folder.last_activity_at)}</p>
 
-        <div className="mt-3">
+        <div className="mt-3 flex items-center gap-2 flex-wrap">
           <span className={`inline-flex items-center gap-1.5 text-base font-medium px-2 py-1 rounded-full ${status.badge}`}>
             <span className={`w-1.5 h-1.5 rounded-full ${status.dot}`} />
             {status.label}
           </span>
+          {!isOwner && (
+            <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full bg-indigo-100 text-indigo-600">
+              Delt med deg
+            </span>
+          )}
         </div>
       </div>
 
@@ -81,7 +86,9 @@ export default function FolderCard({ folder, onDelete }) {
           onClick={e => e.stopPropagation()}
           className="absolute top-12 right-3 z-10 bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[150px]"
         >
-          {!confirmDelete ? (
+          {!isOwner ? (
+            <p className="px-4 py-2 text-xs text-gray-400">Kun eier kan slette</p>
+          ) : !confirmDelete ? (
             <button
               onClick={handleDelete}
               className="w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-red-50"

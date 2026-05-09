@@ -52,8 +52,16 @@ export function UserProvider({ children }) {
     return data
   }
 
+  async function deleteUser(userId) {
+    const { error } = await supabase.from('users').delete().eq('id', userId)
+    if (error) throw error
+    setUsers(prev => prev.filter(u => u.id !== userId))
+  }
+
+  const isAdmin = activeUser?.is_admin === true
+
   return (
-    <UserContext.Provider value={{ activeUser, users, loading, selectUser, clearUser, createUser, loadUsers }}>
+    <UserContext.Provider value={{ activeUser, users, loading, isAdmin, selectUser, clearUser, createUser, deleteUser, loadUsers }}>
       {children}
     </UserContext.Provider>
   )

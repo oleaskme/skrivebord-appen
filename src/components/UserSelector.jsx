@@ -40,6 +40,11 @@ export default function UserSelector() {
                 {user.name.charAt(0).toUpperCase()}
               </div>
               <span className="font-medium text-gray-800">{user.name}</span>
+              {user.is_admin && (
+                <span className="ml-auto text-xs text-amber-600 font-semibold bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                  Admin
+                </span>
+              )}
             </div>
           </button>
         ))}
