@@ -587,7 +587,11 @@ function TaskItem({ task, members = [], onToggle, onDelete, onPriorityChange, on
           {task.ai_suggested && <span className="text-xs text-purple-400">Kaia-foreslått</span>}
         </div>
       </div>
-      {task.owner_id && <OwnerAvatar members={members} ownerId={task.owner_id} />}
+      {task.owner_id && (() => {
+        const m = members.find(m => m.user_id === task.owner_id)
+        const name = m?.users?.name
+        return name ? <span className="text-xs text-gray-500 font-medium shrink-0">Ansvarlig: {name}</span> : null
+      })()}
       <select
         value={task.priority ?? ''}
         onChange={e => { e.stopPropagation(); onPriorityChange(task, e.target.value) }}
