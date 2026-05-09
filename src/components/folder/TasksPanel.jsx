@@ -10,7 +10,23 @@ const PRIORITY = {
 }
 const PRI_ORDER = { high: 0, medium: 1, low: 2, null: 3, undefined: 3 }
 
-export default function TasksPanel({ folderId, folderName }) {
+const AVATAR_COLORS = ['bg-blue-500','bg-violet-500','bg-emerald-500','bg-rose-500','bg-amber-500','bg-cyan-500']
+function avatarColor(name = '') {
+  let h = 0; for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0
+  return AVATAR_COLORS[h % AVATAR_COLORS.length]
+}
+function OwnerAvatar({ members, ownerId, size = 'sm' }) {
+  const m = members.find(m => m.user_id === ownerId)
+  const name = m?.users?.name ?? '?'
+  const sz = size === 'sm' ? 'w-5 h-5 text-[10px]' : 'w-6 h-6 text-xs'
+  return (
+    <span className={`inline-flex items-center justify-center rounded-full text-white font-bold shrink-0 ${sz} ${avatarColor(name)}`} title={name}>
+      {name.charAt(0).toUpperCase()}
+    </span>
+  )
+}
+
+export default function TasksPanel({ folderId, folderName, members = [] }) {
   const { activeUser } = useUser()
   const [tasks, setTasks]         = useState([])
   const [loading, setLoading]     = useState(true)
@@ -71,6 +87,7 @@ export default function TasksPanel({ folderId, folderName }) {
         google_tasklist_id: googleTasklistId,
         status: 'open',
         ai_suggested: false,
+        owner_id: activeUser.id,
       }).select().single()
       setTasks(prev => [...prev, data])
       setNewTitle('')
@@ -240,7 +257,7 @@ export default function TasksPanel({ folderId, folderName }) {
                 {label} ({items.length})
               </p>
               <div className="space-y-2">
-                {items.map(t => <TaskItem key={t.id} task={t} onToggle={handleToggle} onDelete={handleDelete} onPriorityChange={handlePriorityChange} onEdit={() => setEditingTask(t)} />)}
+                {items.map(t => <TaskItem key={t.id} task={t} members={members} onToggle={handleToggle} onDelete={handleDelete} onPriorityChange={handlePriorityChange} onEdit={() => setEditingTask(t)} />)}
               </div>
             </div>
           )
@@ -413,6 +430,7 @@ export default function TasksPanel({ folderId, folderName }) {
       {editingTask && (
         <TaskEditModal
           task={editingTask}
+          members={members}
           onClose={() => setEditingTask(null)}
           onSave={handleEditSave}
           onDelete={handleDelete}
@@ -422,17 +440,18 @@ export default function TasksPanel({ folderId, folderName }) {
   )
 }
 
-function TaskEditModal({ task, onClose, onSave, onDelete }) {
+function TaskEditModal({ task, members, onClose, onSave, onDelete }) {
   const [title, setTitle]       = useState(task.title)
   const [dueDate, setDueDate]   = useState(task.due_date ?? '')
   const [priority, setPriority] = useState(task.priority ?? '')
+  const [ownerId, setOwnerId]   = useState(task.owner_id ?? '')
   const [saving, setSaving]     = useState(false)
   const [confirming, setConfirming] = useState(false)
 
   async function handleSave() {
     if (!title.trim()) return
     setSaving(true)
-    await onSave(task.id, { title: title.trim(), due_date: dueDate || null, priority: priority || null })
+    await onSave(task.id, { title: title.trim(), due_date: dueDate || null, priority: priority || null, owner_id: ownerId || null })
     onClose()
   }
 
@@ -464,6 +483,18 @@ function TaskEditModal({ task, onClose, onSave, onDelete }) {
               <option value="low">Lav</option>
             </select>
           </div>
+          {members.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium text-gray-600 mb-1">Ansvarlig</label>
+              <select value={ownerId} onChange={e => setOwnerId(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400">
+                <option value="">– Ikke tildelt –</option>
+                {members.map(m => (
+                  <option key={m.user_id} value={m.user_id}>{m.users?.name ?? m.user_id}</option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-2 pt-2">
           {!confirming ? (
@@ -491,7 +522,7 @@ function TaskEditModal({ task, onClose, onSave, onDelete }) {
   )
 }
 
-function TaskItem({ task, onToggle, onDelete, onPriorityChange, onEdit }) {
+function TaskItem({ task, members, onToggle, onDelete, onPriorityChange, onEdit }) {
   const isOverdue = task.due_date && task.status !== 'completed' && new Date(task.due_date) < new Date()
   const pri = PRIORITY[task.priority]
   return (
@@ -513,6 +544,7 @@ function TaskItem({ task, onToggle, onDelete, onPriorityChange, onEdit }) {
           {task.ai_suggested && <span className="text-xs text-purple-400">Kaia-foreslått</span>}
         </div>
       </div>
+      {task.owner_id && <OwnerAvatar members={members} ownerId={task.owner_id} />}
       <select
         value={task.priority ?? ''}
         onChange={e => { e.stopPropagation(); onPriorityChange(task, e.target.value) }}

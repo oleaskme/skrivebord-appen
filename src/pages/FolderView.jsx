@@ -302,6 +302,7 @@ export default function FolderView() {
             onMasterSaved={handleMasterSaved}
             folderId={folderId}
             folderName={folder.name}
+            members={members}
           />
         </div>
       </div>

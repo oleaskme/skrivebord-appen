@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../../lib/supabase'
+import { useUser } from '../../context/UserContext'
 
 const SEVERITY = {
   high:   { label: 'Høy',     bg: 'bg-red-50',    border: 'border-red-200',    text: 'text-red-700',    dot: 'bg-red-400' },
@@ -9,7 +10,23 @@ const SEVERITY = {
 
 const SEV_ORDER = { high: 0, medium: 1, low: 2 }
 
-export default function RisksPanel({ folderId }) {
+const AVATAR_COLORS = ['bg-blue-500','bg-violet-500','bg-emerald-500','bg-rose-500','bg-amber-500','bg-cyan-500']
+function avatarColor(name = '') {
+  let h = 0; for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0
+  return AVATAR_COLORS[h % AVATAR_COLORS.length]
+}
+function OwnerAvatar({ members, ownerId }) {
+  const m = members.find(m => m.user_id === ownerId)
+  const name = m?.users?.name ?? '?'
+  return (
+    <span className={`inline-flex items-center justify-center rounded-full text-white font-bold shrink-0 w-5 h-5 text-[10px] ${avatarColor(name)}`} title={name}>
+      {name.charAt(0).toUpperCase()}
+    </span>
+  )
+}
+
+export default function RisksPanel({ folderId, members = [] }) {
+  const { activeUser } = useUser()
   const [risks, setRisks]         = useState([])
   const [loading, setLoading]     = useState(true)
   const [showForm, setShowForm]   = useState(false)
@@ -66,6 +83,7 @@ export default function RisksPanel({ folderId }) {
         severity: newSeverity,
         source_type: 'manual',
         status: 'confirmed',
+        owner_id: activeUser.id,
       }).select().single()
       setRisks(prev => [data, ...prev])
       setNewTitle('')
@@ -156,7 +174,7 @@ export default function RisksPanel({ folderId }) {
             {SEVERITY[sev].label} ({items.length})
           </p>
           <div className="space-y-2">
-            {items.map(r => <RiskItem key={r.id} risk={r} onConfirm={handleConfirm} onDismiss={handleDismiss} onClose={handleClose} onEdit={() => setEditingRisk(r)} />)}
+            {items.map(r => <RiskItem key={r.id} risk={r} members={members} onConfirm={handleConfirm} onDismiss={handleDismiss} onClose={handleClose} onEdit={() => setEditingRisk(r)} />)}
           </div>
         </div>
       ))
@@ -223,7 +241,7 @@ export default function RisksPanel({ folderId }) {
           )}
           <div className="space-y-2">
             {[...items].sort((a, b) => (SEV_ORDER[a.severity] ?? 2) - (SEV_ORDER[b.severity] ?? 2))
-              .map(r => <RiskItem key={r.id} risk={r} onConfirm={handleConfirm} onDismiss={handleDismiss} onClose={handleClose} onEdit={() => setEditingRisk(r)} />)}
+              .map(r => <RiskItem key={r.id} risk={r} members={members} onConfirm={handleConfirm} onDismiss={handleDismiss} onClose={handleClose} onEdit={() => setEditingRisk(r)} />)}
           </div>
         </div>
       )
@@ -348,7 +366,7 @@ export default function RisksPanel({ folderId }) {
               <div className="space-y-2">
                 {closed
                   .sort((a, b) => new Date(b.closed_at) - new Date(a.closed_at))
-                  .map(r => <RiskItem key={r.id} risk={r} onDismiss={handleDismiss} onEdit={() => setEditingRisk(r)} />)
+                  .map(r => <RiskItem key={r.id} risk={r} members={members} onDismiss={handleDismiss} onEdit={() => setEditingRisk(r)} />)
                 }
               </div>
             )}
@@ -360,6 +378,7 @@ export default function RisksPanel({ folderId }) {
         <RiskEditModal
           risk={editingRisk}
           groups={[...new Set(risks.filter(r => r.group_name).map(r => r.group_name))].sort((a, b) => a.localeCompare(b, 'nb'))}
+          members={members}
           onClose={() => setEditingRisk(null)}
           onSave={handleEditSave}
           onDelete={handleDismiss}
@@ -370,11 +389,12 @@ export default function RisksPanel({ folderId }) {
   )
 }
 
-function RiskEditModal({ risk, groups, onClose, onSave, onDelete, onCloseRisk }) {
+function RiskEditModal({ risk, groups, members, onClose, onSave, onDelete, onCloseRisk }) {
   const [title, setTitle]       = useState(risk.title)
   const [severity, setSeverity] = useState(risk.severity ?? 'medium')
   const [group, setGroup]       = useState(risk.group_name ?? '')
   const [newGroup, setNewGroup] = useState('')
+  const [ownerId, setOwnerId]   = useState(risk.owner_id ?? '')
   const [saving, setSaving]     = useState(false)
   const [confirming, setConfirming] = useState(false)
   const [confirmingClose, setConfirmingClose] = useState(false)
@@ -384,7 +404,7 @@ function RiskEditModal({ risk, groups, onClose, onSave, onDelete, onCloseRisk })
   async function handleSave() {
     if (!title.trim()) return
     setSaving(true)
-    await onSave(risk.id, { title: title.trim(), severity, group_name: resolvedGroup || null })
+    await onSave(risk.id, { title: title.trim(), severity, group_name: resolvedGroup || null, owner_id: ownerId || null })
     onClose()
   }
 
@@ -429,6 +449,18 @@ function RiskEditModal({ risk, groups, onClose, onSave, onDelete, onCloseRisk })
               />
             )}
           </div>
+          {members.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium text-gray-600 mb-1">Ansvarlig</label>
+              <select value={ownerId} onChange={e => setOwnerId(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400">
+                <option value="">– Ikke tildelt –</option>
+                {members.map(m => (
+                  <option key={m.user_id} value={m.user_id}>{m.users?.name ?? m.user_id}</option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-2 pt-2 flex-wrap">
           {!confirming && !confirmingClose && (
@@ -471,7 +503,7 @@ function RiskEditModal({ risk, groups, onClose, onSave, onDelete, onCloseRisk })
   )
 }
 
-function RiskItem({ risk, onConfirm, onDismiss, onClose, onEdit }) {
+function RiskItem({ risk, members, onConfirm, onDismiss, onClose, onEdit }) {
   const s = SEVERITY[risk.severity] ?? SEVERITY.medium
   const isClosed = risk.status === 'closed'
   return (
@@ -484,9 +516,12 @@ function RiskItem({ risk, onConfirm, onDismiss, onClose, onEdit }) {
           <span className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${isClosed ? 'bg-gray-400' : s.dot}`} />
           <p className={`text-sm font-medium ${isClosed ? 'text-gray-500 line-through' : s.text}`}>{risk.title}</p>
         </div>
-        <span className={`text-xs font-semibold uppercase shrink-0 ${isClosed ? 'text-gray-400' : s.text}`}>
-          {isClosed ? 'Lukket' : s.label}
-        </span>
+        <div className="flex items-center gap-1.5 shrink-0">
+          {risk.owner_id && <OwnerAvatar members={members} ownerId={risk.owner_id} />}
+          <span className={`text-xs font-semibold uppercase ${isClosed ? 'text-gray-400' : s.text}`}>
+            {isClosed ? 'Lukket' : s.label}
+          </span>
+        </div>
       </div>
       <div className="flex items-center gap-3 mt-2 ml-4 flex-wrap">
         {isClosed ? (

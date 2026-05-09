@@ -322,7 +322,7 @@ function EmptyState() {
 }
 
 // ---- Hoved-komponent ----
-export default function RightPanel({ selectedDoc, masterDocs, inputDocs, onMasterSaved, folderId, folderName }) {
+export default function RightPanel({ selectedDoc, masterDocs, inputDocs, onMasterSaved, folderId, folderName, members = [] }) {
   const [activeTab, setActiveTab] = useState('doc')
   const [reviewResult, setReviewResult]     = useState(null)
   const [approvedTasks, setApprovedTasks]   = useState([])
@@ -409,8 +409,8 @@ export default function RightPanel({ selectedDoc, masterDocs, inputDocs, onMaste
             saving={savingReview}
           />
         )}
-        {activeTab === 'tasks'    && <TasksPanel folderId={folderId} folderName={folderName} />}
-        {activeTab === 'risks'    && <RisksPanel folderId={folderId} />}
+        {activeTab === 'tasks'    && <TasksPanel folderId={folderId} folderName={folderName} members={members} />}
+        {activeTab === 'risks'    && <RisksPanel folderId={folderId} members={members} />}
         {activeTab === 'qa'       && <QAPanel    folderId={folderId} />}
         {activeTab === 'aitasks'  && <AITasksPanel folderId={folderId} />}
       </div>
