@@ -101,16 +101,18 @@ export default function TasksPanel({ folderId, folderName, members = [] }) {
 
   async function handleToggle(task) {
     const newStatus = task.status === 'completed' ? 'open' : 'completed'
-    await supabase.from('tasks').update({ status: newStatus }).eq('id', task.id)
+    const completedAt = newStatus === 'completed' ? new Date().toISOString() : null
+    const completedBy = newStatus === 'completed' ? activeUser.id : null
+    await supabase.from('tasks').update({ status: newStatus, completed_at: completedAt, completed_by: completedBy }).eq('id', task.id)
     if (task.google_tasks_id && task.google_tasklist_id) {
       try {
         await api.tasks.updateItem(activeUser.id, task.google_tasklist_id, task.google_tasks_id, {
           status: newStatus === 'completed' ? 'completed' : 'needsAction',
-          completed: newStatus === 'completed' ? new Date().toISOString() : null,
+          completed: completedAt,
         })
       } catch {}
     }
-    setTasks(prev => prev.map(t => t.id === task.id ? { ...t, status: newStatus } : t))
+    setTasks(prev => prev.map(t => t.id === task.id ? { ...t, status: newStatus, completed_at: completedAt, completed_by: completedBy } : t))
   }
 
   async function handlePriorityChange(task, priority) {
@@ -589,6 +591,14 @@ function TaskItem({ task, members = [], onToggle, onDelete, onPriorityChange, on
             const m = members.find(m => m.user_id === task.owner_id)
             const name = m?.users?.name
             return name ? <span className="text-xs text-gray-500 font-medium">Ansvarlig: {name}</span> : null
+          })()}
+          {task.status === 'completed' && task.completed_at && (() => {
+            const who = task.completed_by ? members.find(m => m.user_id === task.completed_by)?.users?.name : null
+            return (
+              <span className="text-xs text-gray-400">
+                Ferdig {who ? `av ${who} ` : ''}{new Date(task.completed_at).toLocaleString('nb-NO', { dateStyle: 'short', timeStyle: 'short' })}
+              </span>
+            )
           })()}
         </div>
       </div>
