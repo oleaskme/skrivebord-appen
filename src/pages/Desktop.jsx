@@ -279,7 +279,7 @@ function AboutModal({ onClose }) {
               </li>
               <li className="flex gap-2.5">
                 <span className="font-bold text-primary-400 shrink-0">2.</span>
-                <span><span className="font-semibold text-gray-700">Legg til masterdokumenter</span> — last opp egne filer, lim inn tekst eller koble til Google Drive. Gi gjerne Kaia en instruksjon om hva hun skal se etter.</span>
+                <span><span className="font-semibold text-gray-700">Legg til masterdokumenter</span> — kjernedokumentene i mappen. Hvert masterdokument har en formålsbeskrivelse som Kaia bruker når hun analyserer input-dokumenter. Kaia oppdaterer masterdokumentene fortløpende basert på nye input. Du kan også redigere dem selv — ved lagring tolker Kaia endringene og identifiserer nye oppgaver, risikoer og relevante punkter.</span>
               </li>
               <li className="flex gap-2.5">
                 <span className="font-bold text-primary-400 shrink-0">3.</span>
