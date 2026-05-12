@@ -287,7 +287,7 @@ function AboutModal({ onClose }) {
               </li>
               <li className="flex gap-2.5">
                 <span className="font-bold text-primary-400 shrink-0">4.</span>
-                <span><span className="font-semibold text-gray-700">Kjør Kaia</span> ved å krysse av masterdokumenter og input-dokumenter, og trykk «Kjør Kaia». Hun analyserer og foreslår oppgaver og risikoer.</span>
+                <span><span className="font-semibold text-gray-700">Kjør Kaia</span> ved å krysse av masterdokumenter og input-dokumenter, og trykk «Kjør Kaia». Kaia analyserer input-dokumentene, skriver og supplerer masterdokumentene basert på dokumentinstruksen, og oppdaterer oppgaver, risikoer og andre relevante punkter.</span>
               </li>
               <li className="flex gap-2.5">
                 <span className="font-bold text-primary-400 shrink-0">5.</span>
