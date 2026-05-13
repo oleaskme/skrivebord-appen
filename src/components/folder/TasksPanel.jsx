@@ -569,9 +569,13 @@ function TaskEditModal({ task, members, groups, onClose, onSave, onDelete, onCom
         </div>
         <div className="space-y-3">
           <div>
-            <label className="block text-sm font-medium text-gray-600 mb-1">Tittel</label>
-            <input autoFocus type="text" value={title} onChange={e => setTitle(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400" />
+            <label className="block text-sm font-medium text-gray-600 mb-1">Beskrivelse</label>
+            <textarea autoFocus rows={3} value={title} onChange={e => setTitle(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 resize-none" />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-400 mb-0.5">Opprettet</label>
+            <p className="text-sm text-gray-500">{new Date(task.created_at).toLocaleDateString('nb-NO')}</p>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-600 mb-1">Frist</label>
@@ -685,6 +689,11 @@ function TaskItem({ task, members = [], onToggle, onDelete, onPriorityChange, on
           {task.due_date && (
             <p className={`text-xs ${isOverdue ? 'text-red-500' : 'text-gray-400'}`}>
               {isOverdue ? '⚠ ' : ''}Frist: {new Date(task.due_date).toLocaleDateString('nb-NO')}
+            </p>
+          )}
+          {task.created_at && (
+            <p className="text-xs text-gray-300">
+              Opprettet: {new Date(task.created_at).toLocaleDateString('nb-NO')}
             </p>
           )}
 

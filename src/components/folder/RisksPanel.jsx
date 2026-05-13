@@ -424,6 +424,7 @@ export default function RisksPanel({ folderId, members = [] }) {
 function RiskEditModal({ risk, groups, members, onClose, onSave, onDelete, onCloseRisk }) {
   const [title, setTitle]       = useState(risk.title)
   const [severity, setSeverity] = useState(risk.severity ?? 'medium')
+  const [dueDate, setDueDate]   = useState(risk.due_date ?? '')
   const [group, setGroup]       = useState(risk.group_name ?? '')
   const [newGroup, setNewGroup] = useState('')
   const [ownerId, setOwnerId]   = useState(risk.owner_id ?? '')
@@ -436,7 +437,7 @@ function RiskEditModal({ risk, groups, members, onClose, onSave, onDelete, onClo
   async function handleSave() {
     if (!title.trim()) return
     setSaving(true)
-    await onSave(risk.id, { title: title.trim(), severity, group_name: resolvedGroup || null, owner_id: ownerId || null })
+    await onSave(risk.id, { title: title.trim(), severity, due_date: dueDate || null, group_name: resolvedGroup || null, owner_id: ownerId || null })
     onClose()
   }
 
@@ -452,6 +453,17 @@ function RiskEditModal({ risk, groups, members, onClose, onSave, onDelete, onClo
             <label className="block text-sm font-medium text-gray-600 mb-1">Beskrivelse</label>
             <textarea autoFocus rows={3} value={title} onChange={e => setTitle(e.target.value)}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 resize-none" />
+          </div>
+          <div className="flex gap-3">
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-gray-600 mb-1">Frist</label>
+              <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400" />
+            </div>
+            <div className="flex-1">
+              <label className="block text-xs text-gray-400 mb-1">Opprettet</label>
+              <p className="text-sm text-gray-500 py-2">{new Date(risk.identified_at).toLocaleDateString('nb-NO')}</p>
+            </div>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-600 mb-1">Alvorlighetsgrad</label>
@@ -573,8 +585,13 @@ function RiskItem({ risk, members, onConfirm, onDismiss, onClose, onEdit }) {
               className="text-xs text-gray-400 hover:text-red-500 transition-colors">
               Avvis
             </button>
-            <span className="text-xs text-gray-400">
-              {new Date(risk.identified_at).toLocaleDateString('nb-NO')}
+            {risk.due_date && (
+              <span className={`text-xs font-medium ${new Date(risk.due_date) < new Date() ? 'text-red-500' : 'text-gray-400'}`}>
+                {new Date(risk.due_date) < new Date() ? '⚠ ' : ''}Frist: {new Date(risk.due_date).toLocaleDateString('nb-NO')}
+              </span>
+            )}
+            <span className="text-xs text-gray-300">
+              Opprettet: {new Date(risk.identified_at).toLocaleDateString('nb-NO')}
             </span>
             {risk.owner_id && (() => {
               const m = members.find(m => m.user_id === risk.owner_id)
