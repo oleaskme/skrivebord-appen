@@ -19,6 +19,7 @@ function formatDate(dateStr) {
 export default function TimelinePanel({ folderId }) {
   const [tasks, setTasks] = useState([])
   const [loading, setLoading] = useState(true)
+  const [priorityFilter, setPriorityFilter] = useState('alle')
   const containerRef = useRef(null)
   const [svgWidth, setSvgWidth] = useState(900)
 
@@ -27,7 +28,7 @@ export default function TimelinePanel({ folderId }) {
       setLoading(true)
       const { data } = await supabase
         .from('tasks')
-        .select('id, title, due_date, status')
+        .select('id, title, due_date, status, priority')
         .eq('folder_id', folderId)
         .not('due_date', 'is', null)
         .in('status', ['open', 'needs_review'])
@@ -55,6 +56,11 @@ export default function TimelinePanel({ folderId }) {
     </div>
   )
 
+  const filtered = (priorityFilter === 'alle' ? tasks
+    : priorityFilter === 'high'   ? tasks.filter(t => t.priority === 'high')
+    : priorityFilter === 'medium' ? tasks.filter(t => t.priority === 'medium')
+    : tasks.filter(t => t.priority === 'low')).filter(t => t.due_date)
+
   const PAD_LEFT = 56
   const PAD_RIGHT = 56
   const MAX_STEM = Math.max(...STEM_HEIGHTS)
@@ -64,10 +70,10 @@ export default function TimelinePanel({ folderId }) {
   const SVG_HEIGHT = LINE_Y + BELOW_SPACE
 
   // Enough width so dots don't pile up
-  const minWidth = Math.max(svgWidth, tasks.length * 160 + PAD_LEFT + PAD_RIGHT)
+  const minWidth = Math.max(svgWidth, filtered.length * 160 + PAD_LEFT + PAD_RIGHT)
   const usable = minWidth - PAD_LEFT - PAD_RIGHT
 
-  const dates = tasks.map(t => new Date(t.due_date).getTime())
+  const dates = filtered.map(t => new Date(t.due_date).getTime())
   const minDate = dates[0]
   const maxDate = dates[dates.length - 1]
   const span = maxDate - minDate || 1
@@ -79,12 +85,36 @@ export default function TimelinePanel({ folderId }) {
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
-      <div className="px-6 py-3 border-b border-gray-100 shrink-0">
+      <div className="px-6 py-3 border-b border-gray-100 shrink-0 flex items-center justify-between gap-4">
         <h3 className="font-semibold text-gray-700 text-sm">Tidslinje — åpne oppgaver med frist</h3>
+        <div className="flex items-center gap-4 text-sm">
+          {[['alle','Alle'],['high','Høy'],['medium','Medium'],['low','Lav']].map(([val, label]) => (
+            <label key={val} className="flex items-center gap-1.5 cursor-pointer select-none">
+              <input
+                type="radio"
+                name="priority-filter"
+                value={val}
+                checked={priorityFilter === val}
+                onChange={() => setPriorityFilter(val)}
+                className="accent-primary-500"
+              />
+              <span className={`text-xs font-medium ${
+                val === 'high' ? 'text-red-600' :
+                val === 'medium' ? 'text-yellow-600' :
+                val === 'low' ? 'text-gray-500' : 'text-gray-600'
+              }`}>{label}</span>
+            </label>
+          ))}
+        </div>
       </div>
 
       {/* SVG timeline — horizontal scroll */}
-      <div className="flex-1 overflow-x-auto overflow-y-hidden" ref={containerRef}>
+      {filtered.length === 0 ? (
+        <div className="flex-1 flex items-center justify-center text-gray-300 text-sm">
+          Ingen oppgaver med valgt prioritet og frist
+        </div>
+      ) : null}
+      <div className={`flex-1 overflow-x-auto overflow-y-hidden ${filtered.length === 0 ? 'hidden' : ''}`} ref={containerRef}>
         <svg
           width={minWidth}
           height={SVG_HEIGHT}
@@ -115,7 +145,7 @@ export default function TimelinePanel({ folderId }) {
             )
           })()}
 
-          {tasks.map((task, i) => {
+          {filtered.map((task, i) => {
             const x = xPos(task.due_date)
             const above = i % 2 === 0
             const stemH = STEM_HEIGHTS[Math.floor(i / 2) % STEM_HEIGHTS.length]
@@ -167,7 +197,7 @@ export default function TimelinePanel({ folderId }) {
       <div className="shrink-0 border-t border-gray-100 bg-gray-50 px-6 py-4">
         <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Oppgaver</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-1">
-          {tasks.map((task, i) => {
+          {filtered.map((task, i) => {
             const isOverdue = new Date(task.due_date).getTime() < today
             return (
               <div key={task.id} className="flex items-baseline gap-2 text-sm">
