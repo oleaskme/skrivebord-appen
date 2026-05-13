@@ -189,14 +189,22 @@ export default function TasksPanel({ folderId, folderName, members = [] }) {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
-      for (const { id, priority } of data.priorities) {
-        await supabase.from('tasks').update({ priority }).eq('id', id)
-      }
+      await applyPriorityResults(data.priorities)
       await loadTasks()
     } catch (err) {
       alert('Feil: ' + err.message)
     } finally {
       setAssessing(false)
+    }
+  }
+
+  async function applyPriorityResults(priorities) {
+    for (const { id, priority } of priorities) {
+      if (priority === 'uncertain') {
+        await supabase.from('tasks').update({ status: 'needs_review' }).eq('id', id)
+      } else {
+        await supabase.from('tasks').update({ priority, status: 'open' }).eq('id', id)
+      }
     }
   }
 
@@ -243,7 +251,7 @@ export default function TasksPanel({ folderId, folderName, members = [] }) {
     }
   }
 
-  const open      = tasks.filter(t => t.status === 'open')
+  const open      = tasks.filter(t => t.status === 'open' || t.status === 'needs_review')
   const completed = tasks.filter(t => t.status === 'completed')
 
   function sortByPriorityThenDue(items) {
@@ -664,14 +672,22 @@ function TaskEditModal({ task, members, groups, onClose, onSave, onDelete, onCom
 
 function TaskItem({ task, members = [], onToggle, onDelete, onPriorityChange, onEdit }) {
   const isOverdue = task.due_date && task.status !== 'completed' && new Date(task.due_date) < new Date()
+  const needsReview = task.status === 'needs_review'
   const pri = PRIORITY[task.priority]
   return (
     <div onClick={onEdit}
-      className={`flex items-center gap-3 p-3 border rounded-lg hover:border-primary-200 hover:bg-primary-50 transition-colors cursor-pointer ${task.status === 'completed' ? 'border-gray-100 opacity-60' : 'border-gray-100'}`}>
+      className={`flex items-center gap-3 p-3 border rounded-lg hover:border-primary-200 hover:bg-primary-50 transition-colors cursor-pointer ${task.status === 'completed' ? 'border-gray-100 opacity-60' : needsReview ? 'border-orange-200 bg-orange-50' : 'border-gray-100'}`}>
       <div className="flex-1 min-w-0">
-        <p className={`text-sm ${task.status === 'completed' ? 'line-through text-gray-400' : 'text-gray-800'}`}>
-          {task.title}
-        </p>
+        <div className="flex items-center gap-2">
+          <p className={`text-sm ${task.status === 'completed' ? 'line-through text-gray-400' : 'text-gray-800'}`}>
+            {task.title}
+          </p>
+          {needsReview && (
+            <span className="shrink-0 text-xs font-semibold bg-orange-100 text-orange-700 border border-orange-200 rounded px-1.5 py-0.5">
+              Må vurderes
+            </span>
+          )}
+        </div>
         <div className="flex items-center gap-2 mt-0.5 flex-wrap">
           {task.due_date && (
             <p className={`text-xs ${isOverdue ? 'text-red-500' : 'text-gray-400'}`}>

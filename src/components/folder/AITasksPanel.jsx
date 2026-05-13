@@ -92,10 +92,20 @@ async function executeAction(folderId, action) {
     const data = await res.json()
     if (!res.ok) throw new Error(data.error)
 
+    let certain = 0, uncertain = 0
     for (const { id, priority } of data.priorities) {
-      await supabase.from('tasks').update({ priority }).eq('id', id)
+      if (priority === 'uncertain') {
+        await supabase.from('tasks').update({ status: 'needs_review' }).eq('id', id)
+        uncertain++
+      } else {
+        await supabase.from('tasks').update({ priority, status: 'open' }).eq('id', id)
+        certain++
+      }
     }
-    return `Satte prioritet på ${data.priorities.length} oppgave${data.priorities.length !== 1 ? 'r' : ''}.`
+    const parts = []
+    if (certain > 0) parts.push(`Satte prioritet på ${certain} oppgave${certain !== 1 ? 'r' : ''}`)
+    if (uncertain > 0) parts.push(`${uncertain} merket som «Må vurderes»`)
+    return parts.join('. ') + '.'
   }
 
   if (type === 'cleanup') {

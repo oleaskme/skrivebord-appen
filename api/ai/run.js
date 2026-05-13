@@ -115,9 +115,11 @@ export default async function handler(req, res) {
         `id:${t.id} | "${t.title}"${t.due_date ? ` (frist: ${t.due_date})` : ''}`
       ).join('\n')
 
-      const prompt = `Vurder prioritet for følgende oppgaver. Bruk "high", "medium" eller "low".
+      const prompt = `Vurder prioritet for følgende oppgaver.
+Bruk "high", "medium" eller "low" når du er sikker.
+Bruk "uncertain" hvis du ikke har nok informasjon til å vurdere prioriteten.
 Svar med JSON-array — ingen forklaring, kun JSON:
-[{"id":"<id>","priority":"high|medium|low"}]
+[{"id":"<id>","priority":"high|medium|low|uncertain"}]
 
 Oppgaver:
 ${list}`
