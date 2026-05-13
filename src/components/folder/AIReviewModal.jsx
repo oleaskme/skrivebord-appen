@@ -21,6 +21,7 @@ export default function AIReviewModal({ result, master, inputDocs, selectedInput
   const [approvedTasks, setApprovedTasks] = useState([])
   const [approvedRisks, setApprovedRisks] = useState([])
   const [saving, setSaving] = useState(false)
+  const [createVersion, setCreateVersion] = useState(true)
 
   const tasks   = result.suggested_tasks  ?? []
   const risks   = result.suggested_risks  ?? []
@@ -36,6 +37,18 @@ export default function AIReviewModal({ result, master, inputDocs, selectedInput
   async function handleApprove() {
     setSaving(true)
     try {
+      // Lagre snapshot av gjeldende versjon før oppdatering
+      if (createVersion) {
+        const label = `v${formatVersion(master.version_major, master.version_minor)} — ${new Date().toLocaleDateString('nb-NO')}`
+        await supabase.from('master_document_versions').insert({
+          master_doc_id: master.id,
+          content: master.content ?? '',
+          version_label: label,
+          version_major: master.version_major,
+          version_minor: master.version_minor,
+        })
+      }
+
       // Fjern diff-markørene og lagre rent innhold
       const cleanContent = result.updated_content
         .replace(/⟨\+([\s\S]*?)\+⟩/g, '$1')
@@ -244,13 +257,24 @@ export default function AIReviewModal({ result, master, inputDocs, selectedInput
           >
             Forkast
           </button>
-          <button
-            onClick={handleApprove}
-            disabled={saving}
-            className="bg-primary-500 text-white rounded-lg px-8 py-2.5 font-medium hover:bg-primary-600 disabled:opacity-50 transition-colors"
-          >
-            {saving ? 'Lagrer...' : 'Godkjenn og lagre'}
-          </button>
+          <div className="flex items-center gap-4">
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={createVersion}
+                onChange={e => setCreateVersion(e.target.checked)}
+                className="w-4 h-4 accent-primary-500"
+              />
+              <span className="text-sm text-gray-600">Opprett ny versjon av master</span>
+            </label>
+            <button
+              onClick={handleApprove}
+              disabled={saving}
+              className="bg-primary-500 text-white rounded-lg px-8 py-2.5 font-medium hover:bg-primary-600 disabled:opacity-50 transition-colors"
+            >
+              {saving ? 'Lagrer...' : 'Godkjenn og lagre'}
+            </button>
+          </div>
         </div>
       </div>
     </div>
