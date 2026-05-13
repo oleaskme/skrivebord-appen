@@ -57,9 +57,6 @@ export default function TimelinePanel({ folderId, members = [] }) {
     </div>
   )
 
-  // Unique owners who appear in tasks with due_date
-  const ownerIds = [...new Set(tasks.filter(t => t.owner_id).map(t => t.owner_id))]
-
   const filtered = (priorityFilter === 'alle' ? tasks
     : priorityFilter === 'high'   ? tasks.filter(t => t.priority === 'high')
     : priorityFilter === 'medium' ? tasks.filter(t => t.priority === 'medium')
@@ -201,23 +198,20 @@ export default function TimelinePanel({ folderId, members = [] }) {
 
       {/* Legend — full task titles */}
       <div className="shrink-0 border-t border-gray-100 bg-gray-50 px-6 py-4">
-        {ownerIds.length > 0 && (
+        {members.length > 0 && (
           <div className="flex items-center gap-4 mb-3 flex-wrap">
             <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Ansvarlig:</span>
-            {[['alle', 'Alle'], ...ownerIds.map(id => {
-              const m = members.find(m => m.user_id === id)
-              return [id, m?.users?.name ?? 'Ukjent']
-            })].map(([val, label]) => (
-              <label key={val} className="flex items-center gap-1.5 cursor-pointer select-none">
+            {[{ user_id: 'alle', users: { name: 'Alle' } }, ...members].map(m => (
+              <label key={m.user_id} className="flex items-center gap-1.5 cursor-pointer select-none">
                 <input
                   type="radio"
                   name="owner-filter"
-                  value={val}
-                  checked={ownerFilter === val}
-                  onChange={() => setOwnerFilter(val)}
+                  value={m.user_id}
+                  checked={ownerFilter === m.user_id}
+                  onChange={() => setOwnerFilter(m.user_id)}
                   className="accent-primary-500"
                 />
-                <span className="text-xs font-medium text-gray-600">{label}</span>
+                <span className="text-xs font-medium text-gray-600">{m.users?.name ?? 'Ukjent'}</span>
               </label>
             ))}
           </div>
