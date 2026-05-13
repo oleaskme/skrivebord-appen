@@ -16,10 +16,11 @@ function formatDate(dateStr) {
   return new Date(dateStr).toLocaleDateString('nb-NO', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
-export default function TimelinePanel({ folderId }) {
+export default function TimelinePanel({ folderId, members = [] }) {
   const [tasks, setTasks] = useState([])
   const [loading, setLoading] = useState(true)
   const [priorityFilter, setPriorityFilter] = useState('alle')
+  const [ownerFilter, setOwnerFilter] = useState('alle')
   const containerRef = useRef(null)
   const [svgWidth, setSvgWidth] = useState(900)
 
@@ -56,10 +57,15 @@ export default function TimelinePanel({ folderId }) {
     </div>
   )
 
+  // Unique owners who appear in tasks with due_date
+  const ownerIds = [...new Set(tasks.filter(t => t.owner_id).map(t => t.owner_id))]
+
   const filtered = (priorityFilter === 'alle' ? tasks
     : priorityFilter === 'high'   ? tasks.filter(t => t.priority === 'high')
     : priorityFilter === 'medium' ? tasks.filter(t => t.priority === 'medium')
-    : tasks.filter(t => t.priority === 'low')).filter(t => t.due_date)
+    : tasks.filter(t => t.priority === 'low'))
+    .filter(t => t.due_date)
+    .filter(t => ownerFilter === 'alle' || t.owner_id === ownerFilter)
 
   const PAD_LEFT = 56
   const PAD_RIGHT = 56
@@ -195,6 +201,27 @@ export default function TimelinePanel({ folderId }) {
 
       {/* Legend — full task titles */}
       <div className="shrink-0 border-t border-gray-100 bg-gray-50 px-6 py-4">
+        {ownerIds.length > 0 && (
+          <div className="flex items-center gap-4 mb-3 flex-wrap">
+            <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Ansvarlig:</span>
+            {[['alle', 'Alle'], ...ownerIds.map(id => {
+              const m = members.find(m => m.user_id === id)
+              return [id, m?.users?.name ?? 'Ukjent']
+            })].map(([val, label]) => (
+              <label key={val} className="flex items-center gap-1.5 cursor-pointer select-none">
+                <input
+                  type="radio"
+                  name="owner-filter"
+                  value={val}
+                  checked={ownerFilter === val}
+                  onChange={() => setOwnerFilter(val)}
+                  className="accent-primary-500"
+                />
+                <span className="text-xs font-medium text-gray-600">{label}</span>
+              </label>
+            ))}
+          </div>
+        )}
         <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Oppgaver</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-1">
           {filtered.map((task, i) => {

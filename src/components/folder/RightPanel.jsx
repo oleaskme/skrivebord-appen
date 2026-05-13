@@ -487,7 +487,7 @@ export default function RightPanel({ selectedDoc, masterDocs, inputDocs, onMaste
         {activeTab === 'risks'    && <RisksPanel folderId={folderId} members={members} inputDocs={inputDocs} />}
         {activeTab === 'qa'       && <QAPanel    folderId={folderId} />}
         {activeTab === 'aitasks'  && <AITasksPanel folderId={folderId} />}
-        {activeTab === 'timeline' && <TimelinePanel folderId={folderId} />}
+        {activeTab === 'timeline' && <TimelinePanel folderId={folderId} members={members} />}
       </div>
     </div>
   )
