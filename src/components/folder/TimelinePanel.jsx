@@ -7,6 +7,18 @@ const FONT_SIZE = 14   // SVG font size for labels
 const DOT_R = 11
 const today = Date.now()
 
+// Heuristic: names ending in 'a', 'ine', 'elle', 'ette' are typically female in Scandinavian
+function isFemaleName(name = '') {
+  const n = name.trim().toLowerCase()
+  return n.endsWith('a') || n.endsWith('ine') || n.endsWith('elle') || n.endsWith('ette') || n.endsWith('ine')
+}
+
+function sortedMembers(members) {
+  const female = members.filter(m => isFemaleName(m.users?.name)).sort((a, b) => (a.users?.name ?? '').localeCompare(b.users?.name ?? '', 'nb'))
+  const male   = members.filter(m => !isFemaleName(m.users?.name)).sort((a, b) => (a.users?.name ?? '').localeCompare(b.users?.name ?? '', 'nb'))
+  return [...female, ...male]
+}
+
 function shortTitle(title) {
   const words = (title ?? '').trim().split(/\s+/)
   return words.slice(0, 4).join(' ')
@@ -201,7 +213,7 @@ export default function TimelinePanel({ folderId, members = [] }) {
         {members.length > 0 && (
           <div className="flex items-center gap-4 mb-3 flex-wrap">
             <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Ansvarlig:</span>
-            {[{ user_id: 'alle', users: { name: 'Alle' } }, ...members].map(m => (
+            {[{ user_id: 'alle', users: { name: 'Alle' } }, ...sortedMembers(members)].map(m => (
               <label key={m.user_id} className="flex items-center gap-1.5 cursor-pointer select-none">
                 <input
                   type="radio"
@@ -225,7 +237,7 @@ export default function TimelinePanel({ folderId, members = [] }) {
                 <span className={`font-bold tabular-nums shrink-0 ${isOverdue ? 'text-red-500' : 'text-blue-500'}`}>
                   {String(i + 1).padStart(2, '0')}
                 </span>
-                <span className="text-gray-700 leading-snug">{task.title}</span>
+                <span className={`text-gray-700 leading-snug ${task.priority === 'high' ? 'font-bold' : task.priority === 'low' ? 'italic' : ''}`}>{task.title}</span>
                 <span className={`ml-auto shrink-0 text-xs ${isOverdue ? 'text-red-400' : 'text-gray-400'}`}>
                   {formatDate(task.due_date)}
                 </span>
