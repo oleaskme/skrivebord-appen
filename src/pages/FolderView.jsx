@@ -103,23 +103,8 @@ export default function FolderView() {
     if (masterIds.length === 0) return
     const [firstId, ...rest] = masterIds
     setPendingAIRuns(rest.map(id => ({ masterDocId: id, inputDocIds: [doc.id] })))
-    setAiLoading(true)
-    try {
-      const res = await fetch('/api/ai/run', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ folderId, masterDocId: firstId, inputDocIds: [doc.id] }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error)
-      setSelectedDoc({ type: 'master', id: firstId })
-      setSelectedInputIds([doc.id])
-      setAiResult(data)
-    } catch (err) {
-      alert('AI-kjøring feilet: ' + err.message)
-    } finally {
-      setAiLoading(false)
-    }
+    setSelectedInputIds([doc.id])
+    await runAIForMaster(firstId, [doc.id])
   }
 
 

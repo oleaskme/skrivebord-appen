@@ -1,5 +1,16 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { formatVersion } from '../../lib/hash'
+
+const KAIA_STATUSES = [
+  '📖 Kaia leser dokumentene dine...',
+  '🔍 Kaia analyserer innholdet...',
+  '🧩 Kaia setter informasjonen i sammenheng...',
+  '✍️ Kaia formulerer endringer...',
+  '🤔 Kaia vurderer prioriteringer...',
+  '📝 Kaia oppdaterer master-dokumentet...',
+  '⚙️ Kaia arbeider – dette kan ta litt tid...',
+  '🔎 Kaia sjekker for oppgaver og risiko...',
+]
 
 const TYPE_LABELS = {
   note:       { label: 'Notat',       color: 'bg-blue-100 text-blue-700' },
@@ -22,6 +33,13 @@ export default function LeftPanel({
 }) {
   const [inputFilter, setInputFilter] = useState('alle')
   const [selectMode, setSelectMode] = useState(false)
+  const [statusIdx, setStatusIdx] = useState(0)
+
+  useEffect(() => {
+    if (!aiLoading) { setStatusIdx(0); return }
+    const interval = setInterval(() => setStatusIdx(i => (i + 1) % KAIA_STATUSES.length), 10000)
+    return () => clearInterval(interval)
+  }, [aiLoading])
 
   const filteredInputs = inputDocs.filter(d => {
     if (inputFilter === 'ubehandlet') return d.status === 'unprocessed'
@@ -140,8 +158,18 @@ export default function LeftPanel({
 
         {/* Kaia status / Kjør AI-knapp */}
         {aiLoading ? (
-          <div className="px-3 py-2 bg-primary-600 border-b border-primary-700 shrink-0">
-            <p className="text-sm font-semibold text-white text-center">📖 Kaia leser og hjelper deg</p>
+          <div className="px-3 py-3 bg-primary-600 border-b border-primary-700 shrink-0">
+            <p className="text-sm font-semibold text-white text-center animate-pulse">
+              {KAIA_STATUSES[statusIdx]}
+            </p>
+            <div className="mt-2 flex justify-center gap-1">
+              {KAIA_STATUSES.map((_, i) => (
+                <span
+                  key={i}
+                  className={`inline-block w-1.5 h-1.5 rounded-full transition-colors duration-500 ${i === statusIdx ? 'bg-white' : 'bg-primary-400'}`}
+                />
+              ))}
+            </div>
           </div>
         ) : selectMode && (
           <div className="px-3 py-2 bg-primary-50 border-b border-primary-100 shrink-0">

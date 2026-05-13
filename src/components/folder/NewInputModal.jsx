@@ -56,16 +56,85 @@ export default function NewInputModal({ folderId, masterDocs = [], onClose, onCr
   const [showDrive, setShowDrive] = useState(false)
   const [dragOver, setDragOver] = useState(false)
   const [selectedMasterIds, setSelectedMasterIds] = useState(masterDocs.map(m => m.id))
+  const [stagedFile, setStagedFile] = useState(null)
+  const [stagedEmail, setStagedEmail] = useState(null)
+  const [stagedDriveFile, setStagedDriveFile] = useState(null)
+  const [loadingDrive, setLoadingDrive] = useState(false)
   const fileInputRef = useRef(null)
 
   function toggleMaster(id) {
     setSelectedMasterIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
   }
 
-  async function save(type, docTitle, docContent, sourceId, metadata = {}) {
+  function handleTabChange(newTab) {
+    setTab(newTab)
+    setError(null)
+  }
+
+  const isReady = (() => {
+    if (tab === 'note' || tab === 'meeting') return !!title.trim() && !!content.trim()
+    if (tab === 'upload') return !!stagedFile
+    if (tab === 'email') return !!stagedEmail
+    if (tab === 'drive') return !!stagedDriveFile && !loadingDrive
+    return false
+  })()
+
+  function stageFile(file) {
+    if (!file) return
+    setStagedFile(file)
+    setError(null)
+  }
+
+  async function handleEmailSelected(email) {
+    setShowGmail(false)
+    setStagedEmail(email)
+  }
+
+  async function handleDriveSelected(file) {
+    setShowDrive(false)
+    setLoadingDrive(true)
+    setError(null)
+    try {
+      const result = await api.drive.read(activeUser.id, file.id)
+      setStagedDriveFile({ ...file, content: result.content ?? '' })
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoadingDrive(false)
+    }
+  }
+
+  async function handleSave(withKaia) {
+    if (!isReady || saving) return
     setSaving(true)
     setError(null)
     try {
+      let type, docTitle, docContent, sourceId = null, metadata = {}
+
+      if (tab === 'note' || tab === 'meeting') {
+        type = tab
+        docTitle = title.trim()
+        docContent = content.trim()
+      } else if (tab === 'upload') {
+        type = 'upload'
+        docTitle = stagedFile.name
+        docContent = await extractFileContent(stagedFile)
+        metadata = { fileName: stagedFile.name, fileSize: stagedFile.size }
+      } else if (tab === 'email') {
+        type = 'email'
+        const body = `Fra: ${stagedEmail.from}\nDato: ${stagedEmail.date}\nEmne: ${stagedEmail.subject}\n\n${stagedEmail.body}`
+        docTitle = stagedEmail.subject
+        docContent = body
+        sourceId = stagedEmail.messageId
+        metadata = { from: stagedEmail.from, date: stagedEmail.date, subject: stagedEmail.subject }
+      } else if (tab === 'drive') {
+        type = 'drive_file'
+        docTitle = stagedDriveFile.name
+        docContent = stagedDriveFile.content
+        sourceId = stagedDriveFile.id
+        metadata = { mimeType: stagedDriveFile.mimeType }
+      }
+
       const hash = await sha256(docContent ?? '')
       const isDuplicate = await checkDuplicate(folderId, hash, sourceId)
       if (isDuplicate) {
@@ -73,6 +142,7 @@ export default function NewInputModal({ folderId, masterDocs = [], onClose, onCr
         setSaving(false)
         return
       }
+
       const { data, error: err } = await supabase
         .from('input_documents')
         .insert({
@@ -88,52 +158,10 @@ export default function NewInputModal({ folderId, masterDocs = [], onClose, onCr
         .select()
         .single()
       if (err) throw err
+
       await supabase.from('folders').update({ last_activity_at: new Date().toISOString() }).eq('id', folderId)
-      onCreated(data, selectedMasterIds)
+      onCreated(data, withKaia ? selectedMasterIds : [])
       onClose()
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  async function handleNoteOrMeeting() {
-    if (!title.trim() || !content.trim()) return
-    await save(tab, title.trim(), content.trim(), null)
-  }
-
-  async function handleEmailSelected(email) {
-    setShowGmail(false)
-    const body = `Fra: ${email.from}\nDato: ${email.date}\nEmne: ${email.subject}\n\n${email.body}`
-    await save('email', email.subject, body, email.messageId, {
-      from: email.from,
-      date: email.date,
-      subject: email.subject,
-    })
-  }
-
-  async function handleFileUpload(file) {
-    if (!file) return
-    setSaving(true)
-    setError(null)
-    try {
-      const content = await extractFileContent(file)
-      await save('upload', file.name, content, null, { fileName: file.name, fileSize: file.size })
-    } catch (err) {
-      setError(err.message)
-      setSaving(false)
-    }
-  }
-
-  async function handleDriveSelected(file) {
-    setShowDrive(false)
-    setSaving(true)
-    setError(null)
-    try {
-      const result = await api.drive.read(activeUser.id, file.id)
-      const content = result.content ?? ''
-      await save('drive_file', file.name, content, file.id, { mimeType: file.mimeType })
     } catch (err) {
       setError(err.message)
       setSaving(false)
@@ -157,7 +185,7 @@ export default function NewInputModal({ folderId, masterDocs = [], onClose, onCr
           {TABS.map(t => (
             <button
               key={t.id}
-              onClick={() => { setTab(t.id); setError(null) }}
+              onClick={() => handleTabChange(t.id)}
               className={`flex-1 py-3 text-sm font-medium transition-colors ${tab === t.id ? 'text-primary-600 border-b-2 border-primary-500' : 'text-gray-500 hover:text-gray-700'}`}
             >
               {t.label}
@@ -165,9 +193,10 @@ export default function NewInputModal({ folderId, masterDocs = [], onClose, onCr
           ))}
         </div>
 
-        <div className="p-6">
+        <div className="p-6 space-y-4">
+          {/* Notat / Møtereferat */}
           {(tab === 'note' || tab === 'meeting') && (
-            <div className="space-y-4">
+            <div className="space-y-3">
               <input
                 autoFocus
                 type="text"
@@ -180,82 +209,131 @@ export default function NewInputModal({ folderId, masterDocs = [], onClose, onCr
                 placeholder={tab === 'meeting' ? 'Skriv møtereferat her...' : 'Skriv notat her...'}
                 value={content}
                 onChange={e => setContent(e.target.value)}
-                rows={10}
+                rows={8}
                 className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-primary-400 resize-none text-sm"
               />
-              {error && <p className="text-red-500 text-sm">{error}</p>}
-              <button
-                onClick={handleNoteOrMeeting}
-                disabled={saving || !title.trim() || !content.trim()}
-                className="w-full bg-primary-500 text-white rounded-lg py-2.5 font-medium hover:bg-primary-600 disabled:opacity-50 transition-colors"
-              >
-                {saving ? 'Lagrer...' : 'Lagre'}
-              </button>
             </div>
           )}
 
+          {/* E-post */}
           {tab === 'email' && (
-            <div className="text-center py-6 space-y-4">
-              <p className="text-gray-500 text-sm">Velg en e-post fra Gmail-innboksen din.</p>
-              {error && <p className="text-red-500 text-sm">{error}</p>}
-              {saving && <p className="text-gray-400 text-sm">Importerer...</p>}
-              <button
-                onClick={() => setShowGmail(true)}
-                disabled={saving}
-                className="bg-primary-500 text-white rounded-lg px-6 py-2.5 font-medium hover:bg-primary-600 disabled:opacity-50 transition-colors"
-              >
-                Åpne Gmail
-              </button>
+            <div>
+              {!stagedEmail ? (
+                <div className="text-center py-8 space-y-3">
+                  <p className="text-gray-500 text-sm">Velg en e-post fra Gmail-innboksen din.</p>
+                  <button
+                    onClick={() => setShowGmail(true)}
+                    className="bg-primary-500 text-white rounded-lg px-6 py-2.5 font-medium hover:bg-primary-600 transition-colors"
+                  >
+                    Åpne Gmail
+                  </button>
+                </div>
+              ) : (
+                <div className="bg-gray-50 rounded-xl p-4 space-y-1.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="font-semibold text-gray-800 text-sm truncate">{stagedEmail.subject}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">Fra: {stagedEmail.from}</p>
+                      <p className="text-xs text-gray-400">{stagedEmail.date}</p>
+                    </div>
+                    <button
+                      onClick={() => setStagedEmail(null)}
+                      className="text-xs text-gray-400 hover:text-gray-600 shrink-0 border border-gray-200 rounded px-2 py-1"
+                    >
+                      Bytt
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
+          {/* Drive-fil */}
           {tab === 'drive' && (
-            <div className="text-center py-6 space-y-4">
-              <p className="text-gray-500 text-sm">Velg en fil fra Google Drive.</p>
-              {error && <p className="text-red-500 text-sm">{error}</p>}
-              {saving && <p className="text-gray-400 text-sm">Henter fil...</p>}
-              <button
-                onClick={() => setShowDrive(true)}
-                disabled={saving}
-                className="bg-primary-500 text-white rounded-lg px-6 py-2.5 font-medium hover:bg-primary-600 disabled:opacity-50 transition-colors"
-              >
-                Åpne Drive
-              </button>
+            <div>
+              {loadingDrive ? (
+                <div className="text-center py-8">
+                  <p className="text-gray-400 text-sm">Henter fil fra Drive...</p>
+                </div>
+              ) : !stagedDriveFile ? (
+                <div className="text-center py-8 space-y-3">
+                  <p className="text-gray-500 text-sm">Velg en fil fra Google Drive.</p>
+                  <button
+                    onClick={() => setShowDrive(true)}
+                    className="bg-primary-500 text-white rounded-lg px-6 py-2.5 font-medium hover:bg-primary-600 transition-colors"
+                  >
+                    Åpne Drive
+                  </button>
+                </div>
+              ) : (
+                <div className="bg-gray-50 rounded-xl p-4">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="font-semibold text-gray-800 text-sm truncate">📄 {stagedDriveFile.name}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">{stagedDriveFile.mimeType}</p>
+                    </div>
+                    <button
+                      onClick={() => setStagedDriveFile(null)}
+                      className="text-xs text-gray-400 hover:text-gray-600 shrink-0 border border-gray-200 rounded px-2 py-1"
+                    >
+                      Bytt
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
+          {/* Opplasting */}
           {tab === 'upload' && (
-            <div className="space-y-4">
-              <div
-                onDragOver={e => { e.preventDefault(); setDragOver(true) }}
-                onDragLeave={() => setDragOver(false)}
-                onDrop={e => { e.preventDefault(); setDragOver(false); handleFileUpload(e.dataTransfer.files[0]) }}
-                onClick={() => fileInputRef.current?.click()}
-                className={`border-2 border-dashed rounded-xl p-10 text-center cursor-pointer transition-colors ${dragOver ? 'border-primary-400 bg-primary-50' : 'border-gray-300 hover:border-primary-400 hover:bg-gray-50'}`}
-              >
-                <p className="text-2xl mb-2">📄</p>
-                <p className="text-gray-600 text-sm font-medium">Dra og slipp en fil her, eller klikk for å velge</p>
-                <p className="text-gray-400 text-xs mt-1">{SUPPORTED_EXTENSIONS.join(', ')}</p>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept={SUPPORTED_EXTENSIONS.join(',')}
-                  className="hidden"
-                  onChange={e => handleFileUpload(e.target.files[0])}
-                />
-              </div>
-              {saving && <p className="text-gray-400 text-sm text-center">Leser fil...</p>}
-              {error && <p className="text-red-500 text-sm">{error}</p>}
+            <div>
+              {!stagedFile ? (
+                <div
+                  onDragOver={e => { e.preventDefault(); setDragOver(true) }}
+                  onDragLeave={() => setDragOver(false)}
+                  onDrop={e => { e.preventDefault(); setDragOver(false); stageFile(e.dataTransfer.files[0]) }}
+                  onClick={() => fileInputRef.current?.click()}
+                  className={`border-2 border-dashed rounded-xl p-10 text-center cursor-pointer transition-colors ${dragOver ? 'border-primary-400 bg-primary-50' : 'border-gray-300 hover:border-primary-400 hover:bg-gray-50'}`}
+                >
+                  <p className="text-2xl mb-2">📄</p>
+                  <p className="text-gray-600 text-sm font-medium">Dra og slipp en fil her, eller klikk for å velge</p>
+                  <p className="text-gray-400 text-xs mt-1">{SUPPORTED_EXTENSIONS.join(', ')}</p>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept={SUPPORTED_EXTENSIONS.join(',')}
+                    className="hidden"
+                    onChange={e => stageFile(e.target.files[0])}
+                  />
+                </div>
+              ) : (
+                <div className="bg-gray-50 rounded-xl p-4">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="font-semibold text-gray-800 text-sm truncate">📄 {stagedFile.name}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">{(stagedFile.size / 1024).toFixed(1)} KB</p>
+                    </div>
+                    <button
+                      onClick={() => { setStagedFile(null); if (fileInputRef.current) fileInputRef.current.value = '' }}
+                      className="text-xs text-gray-400 hover:text-gray-600 shrink-0 border border-gray-200 rounded px-2 py-1"
+                    >
+                      Fjern
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
+
+          {error && <p className="text-red-500 text-sm">{error}</p>}
 
           {/* Master-valg */}
           {masterDocs.length > 0 && (
-            <div className="mt-5 pt-4 border-t border-gray-100">
+            <div className="pt-3 border-t border-gray-100">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-                La Kaia oppdatere master-dokumenter etter lagring
+                Velg master-dokumenter for Kaia
               </p>
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 {masterDocs.map(m => (
                   <label key={m.id} className={`flex items-center gap-2.5 p-2.5 rounded-lg border cursor-pointer transition-colors ${selectedMasterIds.includes(m.id) ? 'border-primary-200 bg-primary-50' : 'border-gray-100 hover:border-gray-200'}`}>
                     <input
@@ -268,13 +346,32 @@ export default function NewInputModal({ folderId, masterDocs = [], onClose, onCr
                   </label>
                 ))}
               </div>
-              {selectedMasterIds.length > 0 && (
-                <p className="text-xs text-primary-500 mt-2">
-                  Kaia kjøres mot {selectedMasterIds.length} master-dokument{selectedMasterIds.length !== 1 ? 'er' : ''} etter lagring
-                </p>
-              )}
             </div>
           )}
+
+          {/* Handlingsknapper */}
+          <div className={`flex gap-3 pt-1 ${masterDocs.length > 0 ? '' : 'border-t border-gray-100'}`}>
+            <button
+              onClick={() => handleSave(false)}
+              disabled={!isReady || saving}
+              className="flex-1 border border-gray-300 text-gray-700 rounded-lg py-2.5 font-medium hover:bg-gray-50 disabled:opacity-40 transition-colors"
+            >
+              {saving ? 'Lagrer...' : 'Lagre'}
+            </button>
+            {masterDocs.length > 0 && (
+              <button
+                onClick={() => handleSave(true)}
+                disabled={!isReady || saving || selectedMasterIds.length === 0}
+                className="flex-[2] bg-primary-600 text-white rounded-lg py-2.5 font-semibold hover:bg-primary-700 disabled:opacity-40 transition-colors"
+              >
+                {saving
+                  ? 'Starter behandling...'
+                  : selectedMasterIds.length === 0
+                    ? 'Velg master for å starte'
+                    : `Start behandling (${selectedMasterIds.length} master)`}
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>
