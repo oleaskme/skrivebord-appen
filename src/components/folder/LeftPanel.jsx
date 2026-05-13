@@ -34,6 +34,7 @@ export default function LeftPanel({
   const [inputFilter, setInputFilter] = useState('alle')
   const [selectMode, setSelectMode] = useState(false)
   const [statusIdx, setStatusIdx] = useState(0)
+  const [createVersion, setCreateVersion] = useState(true)
 
   useEffect(() => {
     if (!aiLoading) { setStatusIdx(0); return }
@@ -188,13 +189,24 @@ export default function LeftPanel({
                     : 'Kryss av minst ett INPUT-dokument'}
               </p>
             ) : (
-              <button
-                onClick={onRunAI}
-                disabled={aiLoading}
-                className="w-full bg-primary-600 text-white rounded-lg py-2 text-sm font-semibold hover:bg-primary-700 disabled:opacity-60 transition-colors"
-              >
-                {`🤖 Kjør Kaia (${selectedInputIds.length} input → ${selectedMasterIds.length} master)`}
-              </button>
+              <div className="space-y-2">
+                <button
+                  onClick={() => onRunAI(createVersion)}
+                  disabled={aiLoading}
+                  className="w-full bg-primary-600 text-white rounded-lg py-2 text-sm font-semibold hover:bg-primary-700 disabled:opacity-60 transition-colors"
+                >
+                  {`🤖 Kjør Kaia (${selectedInputIds.length} input → ${selectedMasterIds.length} master)`}
+                </button>
+                <label className="flex items-center gap-2 cursor-pointer select-none justify-center">
+                  <input
+                    type="checkbox"
+                    checked={createVersion}
+                    onChange={e => setCreateVersion(e.target.checked)}
+                    className="w-3.5 h-3.5 accent-primary-500"
+                  />
+                  <span className="text-xs text-primary-600">Opprett ny versjon av master</span>
+                </label>
+              </div>
             )}
           </div>
         )}

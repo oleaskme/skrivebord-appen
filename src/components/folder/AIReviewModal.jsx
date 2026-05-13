@@ -16,12 +16,11 @@ function DiffView({ content }) {
   )
 }
 
-export default function AIReviewModal({ result, master, inputDocs, selectedInputIds, folderId, onClose, onApproved }) {
+export default function AIReviewModal({ result, master, inputDocs, selectedInputIds, folderId, createVersion, onClose, onApproved }) {
   const [changelogEntry, setChangelogEntry] = useState(result.changelog_entry ?? '')
   const [approvedTasks, setApprovedTasks] = useState([])
   const [approvedRisks, setApprovedRisks] = useState([])
   const [saving, setSaving] = useState(false)
-  const [createVersion, setCreateVersion] = useState(true)
 
   const tasks   = result.suggested_tasks  ?? []
   const risks   = result.suggested_risks  ?? []
@@ -257,24 +256,13 @@ export default function AIReviewModal({ result, master, inputDocs, selectedInput
           >
             Forkast
           </button>
-          <div className="flex items-center gap-4">
-            <label className="flex items-center gap-2 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={createVersion}
-                onChange={e => setCreateVersion(e.target.checked)}
-                className="w-4 h-4 accent-primary-500"
-              />
-              <span className="text-sm text-gray-600">Opprett ny versjon av master</span>
-            </label>
-            <button
-              onClick={handleApprove}
-              disabled={saving}
-              className="bg-primary-500 text-white rounded-lg px-8 py-2.5 font-medium hover:bg-primary-600 disabled:opacity-50 transition-colors"
-            >
-              {saving ? 'Lagrer...' : 'Godkjenn og lagre'}
-            </button>
-          </div>
+          <button
+            onClick={handleApprove}
+            disabled={saving}
+            className="bg-primary-500 text-white rounded-lg px-8 py-2.5 font-medium hover:bg-primary-600 disabled:opacity-50 transition-colors"
+          >
+            {saving ? 'Lagrer...' : 'Godkjenn og lagre'}
+          </button>
         </div>
       </div>
     </div>

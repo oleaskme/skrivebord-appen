@@ -40,6 +40,7 @@ export default function FolderView() {
   const [pendingAIRuns, setPendingAIRuns] = useState([])
   const [currentAIMasterId, setCurrentAIMasterId] = useState(null)
   const [aiFerdig, setAiFerdig] = useState(false)
+  const [aiCreateVersion, setAiCreateVersion] = useState(true)
   const [search, setSearch] = useState('')
 
   const loadAll = useCallback(async () => {
@@ -145,8 +146,9 @@ export default function FolderView() {
     }
   }
 
-  async function handleRunAI() {
+  async function handleRunAI(createVersion = true) {
     if (selectedMasterIds.length === 0 || selectedInputIds.length === 0) return
+    setAiCreateVersion(createVersion)
     const [firstId, ...rest] = selectedMasterIds
     setPendingAIRuns(rest.map(id => ({ masterDocId: id, inputDocIds: selectedInputIds })))
     await runAIForMaster(firstId, selectedInputIds)
@@ -322,6 +324,7 @@ export default function FolderView() {
           inputDocs={inputDocs}
           selectedInputIds={selectedInputIds}
           folderId={folderId}
+          createVersion={aiCreateVersion}
           onClose={() => { setAiResult(null); setSelectedInputIds([]); setSelectedMasterIds([]); setCurrentAIMasterId(null); setPendingAIRuns([]) }}
           onApproved={handleAIApproved}
         />
