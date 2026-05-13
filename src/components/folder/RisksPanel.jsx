@@ -466,21 +466,27 @@ function RiskEditModal({ risk, groups, members, inputDocs = [], onClose, onSave,
               <p className="text-sm text-gray-500 py-2">{new Date(risk.identified_at).toLocaleDateString('nb-NO')}</p>
             </div>
           </div>
-          {risk.source_input_ids?.length > 0 && inputDocs.length > 0 && (() => {
-            const docs = risk.source_input_ids.map(id => inputDocs.find(d => d.id === id)).filter(Boolean)
-            return docs.length > 0 ? (
-              <div>
-                <label className="block text-xs text-gray-400 mb-1">Kildedokument{docs.length > 1 ? 'er' : ''}</label>
+          {risk.source_type !== 'manual' && (
+            <div>
+              <label className="block text-xs text-gray-400 mb-1">
+                Kildedokument{(risk.source_input_ids?.length ?? 0) > 1 ? 'er' : ''}
+              </label>
+              {risk.source_input_ids?.length > 0 ? (
                 <div className="flex flex-wrap gap-1.5">
-                  {docs.map(d => (
-                    <span key={d.id} className="text-xs bg-blue-50 text-blue-700 border border-blue-200 rounded px-2 py-0.5">
-                      {d.title}
-                    </span>
-                  ))}
+                  {risk.source_input_ids.map(id => {
+                    const doc = inputDocs.find(d => d.id === id)
+                    return doc ? (
+                      <span key={id} className="text-xs bg-blue-50 text-blue-700 border border-blue-200 rounded px-2 py-0.5">
+                        {doc.title}
+                      </span>
+                    ) : null
+                  })}
                 </div>
-              </div>
-            ) : null
-          })()}
+              ) : (
+                <p className="text-xs text-gray-400 italic">Ingen kilde registrert</p>
+              )}
+            </div>
+          )}
           <div>
             <label className="block text-sm font-medium text-gray-600 mb-1">Alvorlighetsgrad</label>
             <select value={severity} onChange={e => setSeverity(e.target.value)}

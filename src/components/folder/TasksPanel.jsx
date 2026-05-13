@@ -338,7 +338,7 @@ export default function TasksPanel({ folderId, folderName, members = [], inputDo
                 </div>
               )}
               <div className="space-y-2">
-                {sortByPriorityThenDue(items).map(t => <TaskItem key={t.id} task={t} members={members} onToggle={handleToggle} onDelete={handleDelete} onPriorityChange={handlePriorityChange} onEdit={() => setEditingTask(t)} />)}
+                {sortByPriorityThenDue(items).map(t => <TaskItem key={t.id} task={t} members={members} inputDocs={inputDocs} onToggle={handleToggle} onDelete={handleDelete} onPriorityChange={handlePriorityChange} onEdit={() => setEditingTask(t)} />)}
               </div>
             </div>
           )
@@ -376,7 +376,7 @@ export default function TasksPanel({ folderId, folderName, members = [], inputDo
           <div key={name}>
             <p className="text-base font-bold text-gray-600 uppercase tracking-wide mb-2">{name} ({items.length})</p>
             <div className="space-y-2">
-              {sortByPriorityThenDue(items).map(t => <TaskItem key={t.id} task={t} members={members} onToggle={handleToggle} onDelete={handleDelete} onPriorityChange={handlePriorityChange} onEdit={() => setEditingTask(t)} />)}
+              {sortByPriorityThenDue(items).map(t => <TaskItem key={t.id} task={t} members={members} inputDocs={inputDocs} onToggle={handleToggle} onDelete={handleDelete} onPriorityChange={handlePriorityChange} onEdit={() => setEditingTask(t)} />)}
             </div>
           </div>
         ))}
@@ -578,19 +578,25 @@ function TaskEditModal({ task, members, inputDocs = [], groups, onClose, onSave,
             <label className="block text-xs text-gray-400 mb-0.5">Opprettet</label>
             <p className="text-sm text-gray-500">{new Date(task.created_at).toLocaleDateString('nb-NO')}</p>
           </div>
-          {task.source_input_ids?.length > 0 && (
+          {task.ai_suggested && (
             <div>
-              <label className="block text-xs text-gray-400 mb-1">Kildedokument{task.source_input_ids.length > 1 ? 'er' : ''}</label>
-              <div className="flex flex-wrap gap-1.5">
-                {task.source_input_ids.map(id => {
-                  const doc = inputDocs.find(d => d.id === id)
-                  return doc ? (
-                    <span key={id} className="text-xs bg-blue-50 text-blue-700 border border-blue-200 rounded px-2 py-0.5">
-                      {doc.title}
-                    </span>
-                  ) : null
-                })}
-              </div>
+              <label className="block text-xs text-gray-400 mb-1">
+                Kildedokument{(task.source_input_ids?.length ?? 0) > 1 ? 'er' : ''}
+              </label>
+              {task.source_input_ids?.length > 0 ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {task.source_input_ids.map(id => {
+                    const doc = inputDocs.find(d => d.id === id)
+                    return doc ? (
+                      <span key={id} className="text-xs bg-blue-50 text-blue-700 border border-blue-200 rounded px-2 py-0.5">
+                        {doc.title}
+                      </span>
+                    ) : null
+                  })}
+                </div>
+              ) : (
+                <p className="text-xs text-gray-400 italic">Ingen kilde registrert</p>
+              )}
             </div>
           )}
           <div>
