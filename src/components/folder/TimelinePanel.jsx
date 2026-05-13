@@ -29,7 +29,7 @@ export default function TimelinePanel({ folderId, members = [] }) {
       setLoading(true)
       const { data } = await supabase
         .from('tasks')
-        .select('id, title, due_date, status, priority')
+        .select('id, title, due_date, status, priority, owner_id')
         .eq('folder_id', folderId)
         .not('due_date', 'is', null)
         .in('status', ['open', 'needs_review'])
