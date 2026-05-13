@@ -109,17 +109,20 @@ export default async function handler(req, res) {
         .eq('folder_id', folderId)
         .neq('status', 'completed')
 
-      if (!taskRows?.length) return res.json({ priorities: [] })
+      if (!taskRows?.length) return res.json({ certain: 0, uncertain: 0 })
 
-      const list = taskRows.map(t =>
-        `id:${t.id} | "${t.title}"${t.due_date ? ` (frist: ${t.due_date})` : ''}`
+      // Bygg nummerert liste slik at Claude alltid returnerer riktig index
+      const indexed = taskRows.map((t, i) => ({ index: i, ...t }))
+      const list = indexed.map(t =>
+        `${t.index}. "${t.title}"${t.due_date ? ` (frist: ${t.due_date})` : ''}`
       ).join('\n')
 
       const prompt = `Vurder prioritet for følgende oppgaver.
 Bruk "high", "medium" eller "low" når du er sikker.
 Bruk "uncertain" hvis du ikke har nok informasjon til å vurdere prioriteten.
-Svar med JSON-array — ingen forklaring, kun JSON:
-[{"id":"<id>","priority":"high|medium|low|uncertain"}]
+Svar med JSON-array der hvert element har "index" (nummeret fra listen) og "priority".
+Ingen forklaring, kun JSON:
+[{"index":0,"priority":"high|medium|low|uncertain"}]
 
 Oppgaver:
 ${list}`
@@ -131,11 +134,25 @@ ${list}`
       })
 
       const raw = response.content[0].text.trim()
-      let priorities
-      try { priorities = JSON.parse(raw) }
-      catch { const m = raw.match(/\[[\s\S]*\]/); priorities = m ? JSON.parse(m[0]) : [] }
+      let parsed
+      try { parsed = JSON.parse(raw) }
+      catch { const m = raw.match(/\[[\s\S]*\]/); parsed = m ? JSON.parse(m[0]) : [] }
 
-      return res.json({ priorities })
+      // Oppdater DB direkte fra server-siden
+      let certain = 0, uncertain = 0
+      for (const { index, priority } of parsed) {
+        const task = indexed[index]
+        if (!task) continue
+        if (priority === 'uncertain') {
+          await supabase.from('tasks').update({ status: 'needs_review' }).eq('id', task.id)
+          uncertain++
+        } else if (['high', 'medium', 'low'].includes(priority)) {
+          await supabase.from('tasks').update({ priority }).eq('id', task.id)
+          certain++
+        }
+      }
+
+      return res.json({ certain, uncertain })
     } catch (err) {
       return res.status(500).json({ error: err.message })
     }

@@ -189,22 +189,15 @@ export default function TasksPanel({ folderId, folderName, members = [] }) {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
-      await applyPriorityResults(data.priorities)
       await loadTasks()
+      const parts = []
+      if (data.certain > 0) parts.push(`${data.certain} oppgave${data.certain !== 1 ? 'r' : ''} fikk prioritet`)
+      if (data.uncertain > 0) parts.push(`${data.uncertain} merket som «Må vurderes»`)
+      if (parts.length) alert(parts.join(', ') + '.')
     } catch (err) {
       alert('Feil: ' + err.message)
     } finally {
       setAssessing(false)
-    }
-  }
-
-  async function applyPriorityResults(priorities) {
-    for (const { id, priority } of priorities) {
-      if (priority === 'uncertain') {
-        await supabase.from('tasks').update({ status: 'needs_review' }).eq('id', id)
-      } else {
-        await supabase.from('tasks').update({ priority, status: 'open' }).eq('id', id)
-      }
     }
   }
 
