@@ -5,8 +5,8 @@ import { formatVersion } from '../../lib/hash'
 function DiffView({ content }) {
   // Erstatt diff-markører med fargede HTML-elementer, bevar HTML-struktur
   const html = content
-    .replace(/⟨\+([\s\S]*?)\+⟩/g, '<mark style="background:#dcfce7;color:#166534;border-radius:3px;padding:0 2px">$1</mark>')
-    .replace(/⟨-([\s\S]*?)-⟩/g, '<del style="background:#fee2e2;color:#991b1b;border-radius:3px;padding:0 2px;text-decoration:line-through">$1</del>')
+    .replace(/⟨\+([\s\S]*?)\+⟩/g, '<span style="background:#dcfce7;color:#166534;border-radius:3px;padding:0 2px;font-weight:normal">$1</span>')
+    .replace(/⟨-([\s\S]*?)-⟩/g, '<span style="background:#fee2e2;color:#991b1b;border-radius:3px;padding:0 2px;text-decoration:line-through;font-weight:normal">$1</span>')
 
   return (
     <div
