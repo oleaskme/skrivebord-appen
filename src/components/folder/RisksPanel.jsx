@@ -25,7 +25,7 @@ function OwnerAvatar({ members, ownerId }) {
   )
 }
 
-export default function RisksPanel({ folderId, members = [] }) {
+export default function RisksPanel({ folderId, members = [], inputDocs = [] }) {
   const { activeUser } = useUser()
   const [risks, setRisks]         = useState([])
   const [loading, setLoading]     = useState(true)
@@ -174,7 +174,7 @@ export default function RisksPanel({ folderId, members = [] }) {
             {SEVERITY[sev].label} ({items.length})
           </p>
           <div className="space-y-2">
-            {items.map(r => <RiskItem key={r.id} risk={r} members={members} onConfirm={handleConfirm} onDismiss={handleDismiss} onClose={handleClose} onEdit={() => setEditingRisk(r)} />)}
+            {items.map(r => <RiskItem key={r.id} risk={r} members={members} inputDocs={inputDocs} onConfirm={handleConfirm} onDismiss={handleDismiss} onClose={handleClose} onEdit={() => setEditingRisk(r)} />)}
           </div>
         </div>
       ))
@@ -241,7 +241,7 @@ export default function RisksPanel({ folderId, members = [] }) {
           )}
           <div className="space-y-2">
             {[...items].sort((a, b) => (SEV_ORDER[a.severity] ?? 2) - (SEV_ORDER[b.severity] ?? 2))
-              .map(r => <RiskItem key={r.id} risk={r} members={members} onConfirm={handleConfirm} onDismiss={handleDismiss} onClose={handleClose} onEdit={() => setEditingRisk(r)} />)}
+              .map(r => <RiskItem key={r.id} risk={r} members={members} inputDocs={inputDocs} onConfirm={handleConfirm} onDismiss={handleDismiss} onClose={handleClose} onEdit={() => setEditingRisk(r)} />)}
           </div>
         </div>
       )
@@ -268,7 +268,7 @@ export default function RisksPanel({ folderId, members = [] }) {
         <p className="text-sm font-bold text-gray-600 uppercase tracking-wide mb-2">{name} ({items.length})</p>
         <div className="space-y-2">
           {[...items].sort((a, b) => (SEV_ORDER[a.severity] ?? 2) - (SEV_ORDER[b.severity] ?? 2))
-            .map(r => <RiskItem key={r.id} risk={r} members={members} onConfirm={handleConfirm} onDismiss={handleDismiss} onClose={handleClose} onEdit={() => setEditingRisk(r)} />)}
+            .map(r => <RiskItem key={r.id} risk={r} members={members} inputDocs={inputDocs} onConfirm={handleConfirm} onDismiss={handleDismiss} onClose={handleClose} onEdit={() => setEditingRisk(r)} />)}
         </div>
       </div>
     ))
@@ -411,6 +411,7 @@ export default function RisksPanel({ folderId, members = [] }) {
           risk={editingRisk}
           groups={[...new Set(risks.filter(r => r.group_name).map(r => r.group_name))].sort((a, b) => a.localeCompare(b, 'nb'))}
           members={members}
+          inputDocs={inputDocs}
           onClose={() => setEditingRisk(null)}
           onSave={handleEditSave}
           onDelete={handleDismiss}
@@ -421,7 +422,7 @@ export default function RisksPanel({ folderId, members = [] }) {
   )
 }
 
-function RiskEditModal({ risk, groups, members, onClose, onSave, onDelete, onCloseRisk }) {
+function RiskEditModal({ risk, groups, members, inputDocs = [], onClose, onSave, onDelete, onCloseRisk }) {
   const [title, setTitle]       = useState(risk.title)
   const [severity, setSeverity] = useState(risk.severity ?? 'medium')
   const [dueDate, setDueDate]   = useState(risk.due_date ?? '')
@@ -465,6 +466,21 @@ function RiskEditModal({ risk, groups, members, onClose, onSave, onDelete, onClo
               <p className="text-sm text-gray-500 py-2">{new Date(risk.identified_at).toLocaleDateString('nb-NO')}</p>
             </div>
           </div>
+          {risk.source_input_ids?.length > 0 && inputDocs.length > 0 && (() => {
+            const docs = risk.source_input_ids.map(id => inputDocs.find(d => d.id === id)).filter(Boolean)
+            return docs.length > 0 ? (
+              <div>
+                <label className="block text-xs text-gray-400 mb-1">Kildedokument{docs.length > 1 ? 'er' : ''}</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {docs.map(d => (
+                    <span key={d.id} className="text-xs bg-blue-50 text-blue-700 border border-blue-200 rounded px-2 py-0.5">
+                      {d.title}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ) : null
+          })()}
           <div>
             <label className="block text-sm font-medium text-gray-600 mb-1">Alvorlighetsgrad</label>
             <select value={severity} onChange={e => setSeverity(e.target.value)}
@@ -547,7 +563,7 @@ function RiskEditModal({ risk, groups, members, onClose, onSave, onDelete, onClo
   )
 }
 
-function RiskItem({ risk, members, onConfirm, onDismiss, onClose, onEdit }) {
+function RiskItem({ risk, members, inputDocs = [], onConfirm, onDismiss, onClose, onEdit }) {
   const s = SEVERITY[risk.severity] ?? SEVERITY.medium
   const isClosed = risk.status === 'closed'
   return (
@@ -597,6 +613,12 @@ function RiskItem({ risk, members, onConfirm, onDismiss, onClose, onEdit }) {
               const m = members.find(m => m.user_id === risk.owner_id)
               const name = m?.users?.name
               return name ? <span className="text-xs text-gray-500 font-medium">Ansvarlig: {name}</span> : null
+            })()}
+            {risk.source_input_ids?.length > 0 && inputDocs.length > 0 && (() => {
+              const titles = risk.source_input_ids.map(id => inputDocs.find(d => d.id === id)?.title).filter(Boolean)
+              return titles.length > 0 ? (
+                <p className="text-xs text-blue-400">Kilde: {titles.join(', ')}</p>
+              ) : null
             })()}
           </>
         )}

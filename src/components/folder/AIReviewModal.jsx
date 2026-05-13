@@ -70,6 +70,7 @@ export default function AIReviewModal({ result, master, inputDocs, selectedInput
           title: tasks[i].title,
           due_date: tasks[i].due_date ?? null,
           ai_suggested: true,
+          source_input_ids: selectedInputIds ?? [],
         }))
         await supabase.from('tasks').insert(taskRows)
       }
@@ -83,6 +84,7 @@ export default function AIReviewModal({ result, master, inputDocs, selectedInput
           source_type: 'master',
           source_id: master.id,
           status: 'confirmed',
+          source_input_ids: selectedInputIds ?? [],
         }))
         await supabase.from('risks').insert(riskRows)
       }

@@ -26,7 +26,7 @@ function OwnerAvatar({ members, ownerId, size = 'sm' }) {
   )
 }
 
-export default function TasksPanel({ folderId, folderName, members = [] }) {
+export default function TasksPanel({ folderId, folderName, members = [], inputDocs = [] }) {
   const { activeUser } = useUser()
   const [tasks, setTasks]         = useState([])
   const [loading, setLoading]     = useState(true)
@@ -276,7 +276,7 @@ export default function TasksPanel({ folderId, folderName, members = [] }) {
                 {label} ({items.length})
               </p>
               <div className="space-y-2">
-                {items.map(t => <TaskItem key={t.id} task={t} members={members} onToggle={handleToggle} onDelete={handleDelete} onPriorityChange={handlePriorityChange} onEdit={() => setEditingTask(t)} />)}
+                {items.map(t => <TaskItem key={t.id} task={t} members={members} inputDocs={inputDocs} onToggle={handleToggle} onDelete={handleDelete} onPriorityChange={handlePriorityChange} onEdit={() => setEditingTask(t)} />)}
               </div>
             </div>
           )
@@ -285,7 +285,7 @@ export default function TasksPanel({ folderId, folderName, members = [] }) {
           <div>
             <p className="text-base font-bold text-gray-400 uppercase tracking-wide mb-2">Fullført ({completed.length})</p>
             <div className="space-y-2">
-              {completed.map(t => <TaskItem key={t.id} task={t} members={members} onToggle={handleToggle} onDelete={handleDelete} onPriorityChange={handlePriorityChange} onEdit={() => setEditingTask(t)} />)}
+              {completed.map(t => <TaskItem key={t.id} task={t} members={members} inputDocs={inputDocs} onToggle={handleToggle} onDelete={handleDelete} onPriorityChange={handlePriorityChange} onEdit={() => setEditingTask(t)} />)}
             </div>
           </div>
         )}
@@ -347,7 +347,7 @@ export default function TasksPanel({ folderId, folderName, members = [] }) {
           <div>
             <p className="text-base font-bold text-gray-400 uppercase tracking-wide mb-2">Fullført ({completed.length})</p>
             <div className="space-y-2">
-              {completed.map(t => <TaskItem key={t.id} task={t} members={members} onToggle={handleToggle} onDelete={handleDelete} onPriorityChange={handlePriorityChange} onEdit={() => setEditingTask(t)} />)}
+              {completed.map(t => <TaskItem key={t.id} task={t} members={members} inputDocs={inputDocs} onToggle={handleToggle} onDelete={handleDelete} onPriorityChange={handlePriorityChange} onEdit={() => setEditingTask(t)} />)}
             </div>
           </div>
         )}
@@ -384,7 +384,7 @@ export default function TasksPanel({ folderId, folderName, members = [] }) {
           <div>
             <p className="text-base font-bold text-gray-400 uppercase tracking-wide mb-2">Fullført ({completed.length})</p>
             <div className="space-y-2">
-              {completed.map(t => <TaskItem key={t.id} task={t} members={members} onToggle={handleToggle} onDelete={handleDelete} onPriorityChange={handlePriorityChange} onEdit={() => setEditingTask(t)} />)}
+              {completed.map(t => <TaskItem key={t.id} task={t} members={members} inputDocs={inputDocs} onToggle={handleToggle} onDelete={handleDelete} onPriorityChange={handlePriorityChange} onEdit={() => setEditingTask(t)} />)}
             </div>
           </div>
         )}
@@ -520,6 +520,7 @@ export default function TasksPanel({ folderId, folderName, members = [] }) {
         <TaskEditModal
           task={editingTask}
           members={members}
+          inputDocs={inputDocs}
           groups={[...new Set(tasks.filter(t => t.group_name).map(t => t.group_name))].sort((a, b) => a.localeCompare(b, 'nb'))}
           onClose={() => setEditingTask(null)}
           onSave={handleEditSave}
@@ -540,7 +541,7 @@ export default function TasksPanel({ folderId, folderName, members = [] }) {
   )
 }
 
-function TaskEditModal({ task, members, groups, onClose, onSave, onDelete, onComplete, onReopen }) {
+function TaskEditModal({ task, members, inputDocs = [], groups, onClose, onSave, onDelete, onComplete, onReopen }) {
   const [title, setTitle]       = useState(task.title)
   const [dueDate, setDueDate]   = useState(task.due_date ?? '')
   const [priority, setPriority] = useState(task.priority ?? '')
@@ -577,6 +578,21 @@ function TaskEditModal({ task, members, groups, onClose, onSave, onDelete, onCom
             <label className="block text-xs text-gray-400 mb-0.5">Opprettet</label>
             <p className="text-sm text-gray-500">{new Date(task.created_at).toLocaleDateString('nb-NO')}</p>
           </div>
+          {task.source_input_ids?.length > 0 && (
+            <div>
+              <label className="block text-xs text-gray-400 mb-1">Kildedokument{task.source_input_ids.length > 1 ? 'er' : ''}</label>
+              <div className="flex flex-wrap gap-1.5">
+                {task.source_input_ids.map(id => {
+                  const doc = inputDocs.find(d => d.id === id)
+                  return doc ? (
+                    <span key={id} className="text-xs bg-blue-50 text-blue-700 border border-blue-200 rounded px-2 py-0.5">
+                      {doc.title}
+                    </span>
+                  ) : null
+                })}
+              </div>
+            </div>
+          )}
           <div>
             <label className="block text-sm font-medium text-gray-600 mb-1">Frist</label>
             <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)}
@@ -667,7 +683,7 @@ function TaskEditModal({ task, members, groups, onClose, onSave, onDelete, onCom
   )
 }
 
-function TaskItem({ task, members = [], onToggle, onDelete, onPriorityChange, onEdit }) {
+function TaskItem({ task, members = [], inputDocs = [], onToggle, onDelete, onPriorityChange, onEdit }) {
   const isOverdue = task.due_date && task.status !== 'completed' && new Date(task.due_date) < new Date()
   const needsReview = task.status === 'needs_review'
   const pri = PRIORITY[task.priority]
@@ -696,6 +712,14 @@ function TaskItem({ task, members = [], onToggle, onDelete, onPriorityChange, on
               Opprettet: {new Date(task.created_at).toLocaleDateString('nb-NO')}
             </p>
           )}
+          {task.source_input_ids?.length > 0 && inputDocs.length > 0 && (() => {
+            const titles = task.source_input_ids.map(id => inputDocs.find(d => d.id === id)?.title).filter(Boolean)
+            return titles.length > 0 ? (
+              <p className="text-xs text-blue-400">
+                Kilde: {titles.join(', ')}
+              </p>
+            ) : null
+          })()}
 
           {task.owner_id && (() => {
             const m = members.find(m => m.user_id === task.owner_id)

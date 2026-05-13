@@ -343,12 +343,12 @@ export default function RightPanel({ selectedDoc, masterDocs, inputDocs, onMaste
     const risks = reviewResult.suggested_risks ?? []
     if (approvedTasks.length > 0) {
       await supabase.from('tasks').insert(
-        approvedTasks.map(i => ({ folder_id: folderId, title: tasks[i].title, due_date: tasks[i].due_date ?? null, ai_suggested: true }))
+        approvedTasks.map(i => ({ folder_id: folderId, title: tasks[i].title, due_date: tasks[i].due_date ?? null, ai_suggested: true, source_input_ids: [] }))
       )
     }
     if (approvedRisks.length > 0) {
       await supabase.from('risks').insert(
-        approvedRisks.map(i => ({ folder_id: folderId, title: risks[i].title, severity: risks[i].severity ?? 'medium', source_type: 'master', source_id: selectedDoc?.id, status: 'confirmed' }))
+        approvedRisks.map(i => ({ folder_id: folderId, title: risks[i].title, severity: risks[i].severity ?? 'medium', source_type: 'master', source_id: selectedDoc?.id, status: 'confirmed', source_input_ids: [] }))
       )
     }
     setSavingReview(false)
@@ -409,8 +409,8 @@ export default function RightPanel({ selectedDoc, masterDocs, inputDocs, onMaste
             saving={savingReview}
           />
         )}
-        {activeTab === 'tasks'    && <TasksPanel folderId={folderId} folderName={folderName} members={members} />}
-        {activeTab === 'risks'    && <RisksPanel folderId={folderId} members={members} />}
+        {activeTab === 'tasks'    && <TasksPanel folderId={folderId} folderName={folderName} members={members} inputDocs={inputDocs} />}
+        {activeTab === 'risks'    && <RisksPanel folderId={folderId} members={members} inputDocs={inputDocs} />}
         {activeTab === 'qa'       && <QAPanel    folderId={folderId} />}
         {activeTab === 'aitasks'  && <AITasksPanel folderId={folderId} />}
       </div>

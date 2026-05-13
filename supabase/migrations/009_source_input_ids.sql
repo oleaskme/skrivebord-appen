@@ -1,0 +1,2 @@
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS source_input_ids UUID[] DEFAULT '{}';
+ALTER TABLE risks ADD COLUMN IF NOT EXISTS source_input_ids UUID[] DEFAULT '{}';
