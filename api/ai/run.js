@@ -176,11 +176,12 @@ Returner gyldig JSON uten markdown:
 
 Alle elementer skal tilhøre én gruppe. Ingen tomme grupper.`
 
-      const response = await anthropic.messages.create({
+      const cleanupStream = anthropic.messages.stream({
         model: 'claude-sonnet-4-6',
         max_tokens: 16000,
         messages: [{ role: 'user', content: prompt }],
       })
+      const response = await cleanupStream.finalMessage()
 
       if (response.stop_reason === 'max_tokens') {
         return res.status(500).json({ error: 'For mange elementer — prøv å rydde i mindre bolker.' })
@@ -349,8 +350,8 @@ ${inputText}
 
 Oppdater MASTER-dokumentet basert på INPUT-dokumentene og returner JSON.`
 
-    // Kall Claude API med utvidet output-støtte
-    const response = await anthropic.messages.create(
+    // Kall Claude API med streaming (påkrevd av SDK for store max_tokens)
+    const stream = anthropic.messages.stream(
       {
         model: 'claude-sonnet-4-6',
         max_tokens: 32000,
@@ -359,6 +360,7 @@ Oppdater MASTER-dokumentet basert på INPUT-dokumentene og returner JSON.`
       },
       { headers: { 'anthropic-beta': 'output-128k-2025-02-19' } },
     )
+    const response = await stream.finalMessage()
 
     if (response.stop_reason === 'max_tokens') {
       console.error('AI run: svar ble trunkert (max_tokens nådd)')
