@@ -7,6 +7,11 @@ const FONT_SIZE = 14   // SVG font size for labels
 const DOT_R = 11
 const today = Date.now()
 
+function shortTitle(title) {
+  const words = (title ?? '').trim().split(/\s+/)
+  return words.slice(0, 4).join(' ')
+}
+
 function formatDate(dateStr) {
   return new Date(dateStr).toLocaleDateString('nb-NO', { day: 'numeric', month: 'short', year: 'numeric' })
 }
@@ -54,7 +59,7 @@ export default function TimelinePanel({ folderId }) {
   const PAD_RIGHT = 56
   const MAX_STEM = Math.max(...STEM_HEIGHTS)
   // Reserve space above for labels, below for labels + legend
-  const LINE_Y = MAX_STEM + FONT_SIZE + 16
+  const LINE_Y = MAX_STEM + FONT_SIZE + 48
   const BELOW_SPACE = MAX_STEM + FONT_SIZE + 24
   const SVG_HEIGHT = LINE_Y + BELOW_SPACE
 
@@ -91,11 +96,11 @@ export default function TimelinePanel({ folderId }) {
           <line
             x1={PAD_LEFT - 10} y1={LINE_Y}
             x2={minWidth - PAD_RIGHT + 16} y2={LINE_Y}
-            stroke="#cbd5e1" strokeWidth="2.5"
+            stroke="#94a3b8" strokeWidth="6"
           />
           <polygon
             points={`${minWidth - PAD_RIGHT + 16},${LINE_Y - 7} ${minWidth - PAD_RIGHT + 32},${LINE_Y} ${minWidth - PAD_RIGHT + 16},${LINE_Y + 7}`}
-            fill="#cbd5e1"
+            fill="#94a3b8"
           />
 
           {/* I dag-markør */}
@@ -134,7 +139,7 @@ export default function TimelinePanel({ folderId }) {
                   </text>
                   {/* Label starting at x (left-aligned from stem top) */}
                   <text x={x + 6} y={lineEnd - 6} textAnchor="start" fontSize={FONT_SIZE} fill={textColor} fontWeight="600">
-                    {num} — {dateStr}
+                    {num} — {shortTitle(task.title)}
                   </text>
                 </g>
               )
@@ -149,7 +154,7 @@ export default function TimelinePanel({ folderId }) {
                     {num}
                   </text>
                   <text x={x + 6} y={lineEnd + FONT_SIZE + 2} textAnchor="start" fontSize={FONT_SIZE} fill={textColor} fontWeight="600">
-                    {num} — {dateStr}
+                    {num} — {shortTitle(task.title)}
                   </text>
                 </g>
               )
