@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
 import { formatVersion } from '../../lib/hash'
 import { useUser } from '../../context/UserContext'
@@ -128,6 +128,47 @@ function MasterViewer({ doc, folderId, onSaved, onReviewResult }) {
   const [uploadingDrive, setUploadingDrive] = useState(false)
   const [driveMsg, setDriveMsg] = useState(null)
   const [reviewing, setReviewing] = useState(false)
+  const [versionOpen, setVersionOpen] = useState(false)
+  const [versions, setVersions] = useState([])
+  const [savingVersion, setSavingVersion] = useState(false)
+  const versionRef = useRef(null)
+
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (versionRef.current && !versionRef.current.contains(e.target)) {
+        setVersionOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  async function loadVersions() {
+    const { data } = await supabase
+      .from('master_document_versions')
+      .select('id, version_label, version_major, version_minor, created_at')
+      .eq('master_doc_id', doc.id)
+      .order('created_at', { ascending: false })
+    setVersions(data ?? [])
+  }
+
+  async function handleCreateVersion() {
+    setSavingVersion(true)
+    try {
+      const label = `v${formatVersion(doc.version_major, doc.version_minor)} — ${new Date().toLocaleDateString('nb-NO')}`
+      await supabase.from('master_document_versions').insert({
+        master_doc_id: doc.id,
+        content: buildFullContent(),
+        version_label: label,
+        version_major: doc.version_major,
+        version_minor: doc.version_minor,
+        created_by: activeUser?.id ?? null,
+      })
+      await loadVersions()
+    } finally {
+      setSavingVersion(false)
+    }
+  }
 
   useEffect(() => {
     const parts = splitContent(doc.content)
@@ -223,6 +264,37 @@ function MasterViewer({ doc, folderId, onSaved, onReviewResult }) {
             className="text-xs border border-gray-200 rounded-lg px-3 py-1.5 text-gray-600 hover:border-gray-300 hover:text-gray-800 disabled:opacity-50 transition-colors">
             {exporting ? '...' : '⬇ Last ned'}
           </button>
+          <div className="relative" ref={versionRef}>
+            <button
+              onClick={() => { setVersionOpen(v => !v); if (!versionOpen) loadVersions() }}
+              className="text-xs border border-gray-200 rounded-lg px-3 py-1.5 text-gray-600 hover:border-gray-300 hover:text-gray-800 transition-colors flex items-center gap-1"
+            >
+              Versjoner ▾
+            </button>
+            {versionOpen && (
+              <div className="absolute right-0 top-full mt-1 w-64 bg-white border border-gray-200 rounded-xl shadow-lg z-20 py-1 overflow-hidden">
+                <button
+                  onClick={handleCreateVersion}
+                  disabled={savingVersion}
+                  className="w-full text-left px-4 py-2.5 text-sm font-medium text-primary-600 hover:bg-primary-50 disabled:opacity-50 transition-colors border-b border-gray-100"
+                >
+                  {savingVersion ? 'Lagrer...' : '+ Lag ny versjon'}
+                </button>
+                {versions.length === 0 ? (
+                  <p className="text-xs text-gray-400 px-4 py-3">Ingen versjoner lagret</p>
+                ) : (
+                  <div className="max-h-56 overflow-y-auto">
+                    {versions.map(v => (
+                      <div key={v.id} className="px-4 py-2 hover:bg-gray-50 transition-colors">
+                        <p className="text-sm font-medium text-gray-700">{v.version_label}</p>
+                        <p className="text-xs text-gray-400">{new Date(v.created_at).toLocaleDateString('nb-NO', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
           <button onClick={handleSaveToDrive} disabled={uploadingDrive}
             className="text-xs border border-gray-200 rounded-lg px-3 py-1.5 text-gray-600 hover:border-gray-300 hover:text-gray-800 disabled:opacity-50 transition-colors">
             {uploadingDrive ? '...' : '☁ Lagre til Drive'}
