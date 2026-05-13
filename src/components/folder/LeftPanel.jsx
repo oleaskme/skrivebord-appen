@@ -29,7 +29,7 @@ export default function LeftPanel({
   onDeleteInput, onDeleteMaster,
   selectedInputIds, onToggleInput,
   selectedMasterIds, onToggleMaster,
-  onRunAI, aiLoading,
+  onRunAI, aiLoading, aiFerdig,
 }) {
   const [inputFilter, setInputFilter] = useState('alle')
   const [selectMode, setSelectMode] = useState(false)
@@ -170,6 +170,12 @@ export default function LeftPanel({
                 />
               ))}
             </div>
+          </div>
+        ) : aiFerdig ? (
+          <div className="px-3 py-3 bg-green-600 border-b border-green-700 shrink-0">
+            <p className="text-sm font-semibold text-white text-center">
+              ✓ Kaia er ferdig — endringer er lagret
+            </p>
           </div>
         ) : selectMode && (
           <div className="px-3 py-2 bg-primary-50 border-b border-primary-100 shrink-0">

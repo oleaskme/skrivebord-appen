@@ -39,6 +39,7 @@ export default function FolderView() {
   const [aiResult, setAiResult] = useState(null)
   const [pendingAIRuns, setPendingAIRuns] = useState([])
   const [currentAIMasterId, setCurrentAIMasterId] = useState(null)
+  const [aiFerdig, setAiFerdig] = useState(false)
   const [search, setSearch] = useState('')
 
   const loadAll = useCallback(async () => {
@@ -162,6 +163,8 @@ export default function FolderView() {
       setSelectedInputIds([])
       setSelectedMasterIds([])
       setCurrentAIMasterId(null)
+      setAiFerdig(true)
+      setTimeout(() => setAiFerdig(false), 4000)
     }
   }
 
@@ -275,6 +278,7 @@ export default function FolderView() {
             onToggleMaster={handleToggleMaster}
             onRunAI={handleRunAI}
             aiLoading={aiLoading}
+            aiFerdig={aiFerdig}
           />
         </div>
 

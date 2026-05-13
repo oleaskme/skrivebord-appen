@@ -106,7 +106,18 @@ export default function AIReviewModal({ result, master, inputDocs, selectedInput
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl h-[90vh] flex flex-col overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl h-[90vh] flex flex-col overflow-hidden relative">
+
+        {/* Lagreoverlay etter godkjenning */}
+        {saving && (
+          <div className="absolute inset-0 z-20 bg-white/95 flex flex-col items-center justify-center gap-5 rounded-2xl">
+            <div className="w-12 h-12 border-4 border-primary-200 border-t-primary-600 rounded-full animate-spin" />
+            <div className="text-center">
+              <p className="font-bold text-gray-800 text-lg">Lagrer godkjente endringer</p>
+              <p className="text-sm text-gray-400 mt-1">Oppdaterer master-dokument og registrerer oppgaver og risikoer…</p>
+            </div>
+          </div>
+        )}
 
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
