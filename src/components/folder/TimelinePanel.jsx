@@ -60,7 +60,7 @@ export default function TimelinePanel({ folderId }) {
   const LINE_Y = MAX_STEM + 32          // space for labels above
   const BELOW_MAX = MAX_STEM + 32       // space for labels below
   const SVG_HEIGHT = LINE_Y + BELOW_MAX
-  const CHAR_W = 7                      // approx px per char for font-size 12
+  const CHAR_W = 10                     // approx px per char for font-size 18
 
   const minWidth = Math.max(svgWidth, tasks.length * 140)
   const usable = minWidth - PAD_LEFT - PAD_RIGHT
@@ -134,7 +134,7 @@ export default function TimelinePanel({ folderId }) {
                   <text x={x} y={LINE_Y + 4} textAnchor="middle" fontSize="9" fill="white" fontWeight="700">
                     {String(i + 1).padStart(2, '0')}
                   </text>
-                  <text x={labelX} y={stemTop - 6} textAnchor="middle" fontSize="12" fill={textColor} fontWeight="500">
+                  <text x={labelX} y={stemTop - 6} textAnchor="middle" fontSize="18" fill={textColor} fontWeight="500">
                     {label}
                   </text>
                 </g>
@@ -149,7 +149,7 @@ export default function TimelinePanel({ folderId }) {
                   <text x={x} y={LINE_Y + 4} textAnchor="middle" fontSize="9" fill="white" fontWeight="700">
                     {String(i + 1).padStart(2, '0')}
                   </text>
-                  <text x={labelX} y={stemBot + 18} textAnchor="middle" fontSize="12" fill={textColor} fontWeight="500">
+                  <text x={labelX} y={stemBot + 18} textAnchor="middle" fontSize="18" fill={textColor} fontWeight="500">
                     {label}
                   </text>
                 </g>
