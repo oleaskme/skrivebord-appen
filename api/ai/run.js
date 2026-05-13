@@ -319,9 +319,17 @@ Gå gjennom dokumentet og identifiser KUN nye oppgaver og risikoer som ikke alle
     const inputsRes = await supabase.from('input_documents').select('*').in('id', inputDocIds)
     const inputs = inputsRes.data ?? []
 
-    const inputText = inputs.map(d =>
-      `--- INPUT: ${d.title} (${d.type}) ---\n${d.content ?? '(tomt)'}\n`
-    ).join('\n')
+    // Begrens innholdslengde for å unngå token-overflyt
+    const MAX_MASTER_CHARS = 80_000
+    const MAX_INPUT_CHARS  = 20_000
+    const masterContent = (master.content || '(tomt dokument — fyll ut basert på INPUT)').slice(0, MAX_MASTER_CHARS)
+
+    const inputText = inputs.map(d => {
+      const raw = d.content ?? '(tomt)'
+      const truncated = raw.slice(0, MAX_INPUT_CHARS)
+      const suffix = raw.length > MAX_INPUT_CHARS ? '\n[...innhold forkortet pga. størrelse...]' : ''
+      return `--- INPUT: ${d.title} (${d.type}) ---\n${truncated}${suffix}\n`
+    }).join('\n')
 
     const userMessage = `
 Mappe: ${folder.name}
@@ -331,7 +339,7 @@ MASTER-dokument: ${master.name}
 AI-instruksjon: ${master.ai_instruction ?? '(ingen instruksjon satt)'}
 
 Gjeldende innhold i MASTER-dokumentet:
-${master.content || '(tomt dokument — fyll ut basert på INPUT)'}
+${masterContent}
 
 ---
 
@@ -341,13 +349,16 @@ ${inputText}
 
 Oppdater MASTER-dokumentet basert på INPUT-dokumentene og returner JSON.`
 
-    // Kall Claude API
-    const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 16000,
-      system: SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: userMessage }],
-    })
+    // Kall Claude API med utvidet output-støtte
+    const response = await anthropic.messages.create(
+      {
+        model: 'claude-sonnet-4-6',
+        max_tokens: 32000,
+        system: SYSTEM_PROMPT,
+        messages: [{ role: 'user', content: userMessage }],
+      },
+      { headers: { 'anthropic-beta': 'output-128k-2025-02-19' } },
+    )
 
     if (response.stop_reason === 'max_tokens') {
       console.error('AI run: svar ble trunkert (max_tokens nådd)')
