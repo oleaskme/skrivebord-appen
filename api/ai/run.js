@@ -423,7 +423,7 @@ Regler for handlinger:
                 title: action.title,
                 severity: action.severity ?? 'medium',
                 description: action.description ?? null,
-                status: 'open',
+                status: 'proposed',
               }).select('id').single()
               if (!error) actionsExecuted.push({ type: action.type, id: newRisk?.id })
               else console.error('create_risk error:', error.message)
