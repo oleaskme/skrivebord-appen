@@ -177,16 +177,21 @@ function MasterViewer({ doc, folderId, onSaved, onReviewResult }) {
     setVersionMsg(null)
     try {
       const label = `v${formatVersion(doc.version_major, doc.version_minor)} — ${new Date().toLocaleDateString('nb-NO')}`
-      const { error } = await supabase.from('master_document_versions').insert({
-        master_doc_id: doc.id,
-        content: buildFullContent(),
-        version_label: label,
-        version_major: doc.version_major,
-        version_minor: doc.version_minor,
-        created_by: activeUser?.id ?? null,
+      const res = await fetch('/api/versions/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          masterDocId: doc.id,
+          content: buildFullContent(),
+          versionLabel: label,
+          versionMajor: doc.version_major,
+          versionMinor: doc.version_minor,
+          createdBy: activeUser?.id ?? null,
+        }),
       })
-      if (error) {
-        setVersionMsg('Feil: ' + error.message)
+      const data = await res.json()
+      if (!res.ok) {
+        setVersionMsg('Feil: ' + data.error)
       } else {
         setVersionMsg('✓ Versjon lagret')
         setTimeout(() => setVersionMsg(null), 3000)
