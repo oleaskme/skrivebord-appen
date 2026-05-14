@@ -134,6 +134,7 @@ function MasterViewer({ doc, folderId, onSaved, onReviewResult }) {
   const [versionOpen, setVersionOpen] = useState(false)
   const [versions, setVersions] = useState([])
   const [savingVersion, setSavingVersion] = useState(false)
+  const [versionMsg, setVersionMsg] = useState(null)
   const [previewVersion, setPreviewVersion] = useState(null)
   const [restoring, setRestoring] = useState(false)
   const versionRef = useRef(null)
@@ -173,9 +174,10 @@ function MasterViewer({ doc, folderId, onSaved, onReviewResult }) {
 
   async function handleCreateVersion() {
     setSavingVersion(true)
+    setVersionMsg(null)
     try {
       const label = `v${formatVersion(doc.version_major, doc.version_minor)} — ${new Date().toLocaleDateString('nb-NO')}`
-      await supabase.from('master_document_versions').insert({
+      const { error } = await supabase.from('master_document_versions').insert({
         master_doc_id: doc.id,
         content: buildFullContent(),
         version_label: label,
@@ -183,7 +185,15 @@ function MasterViewer({ doc, folderId, onSaved, onReviewResult }) {
         version_minor: doc.version_minor,
         created_by: activeUser?.id ?? null,
       })
-      await loadVersions()
+      if (error) {
+        setVersionMsg('Feil: ' + error.message)
+      } else {
+        setVersionMsg('✓ Versjon lagret')
+        setTimeout(() => setVersionMsg(null), 3000)
+        await loadVersions()
+      }
+    } catch (err) {
+      setVersionMsg('Feil: ' + err.message)
     } finally {
       setSavingVersion(false)
     }
@@ -202,6 +212,16 @@ function MasterViewer({ doc, folderId, onSaved, onReviewResult }) {
   }
 
   async function handleSave() {
+    setSaving(true)
+    await supabase.from('master_documents')
+      .update({ content: buildFullContent(), updated_at: new Date().toISOString() })
+      .eq('id', doc.id)
+    setSaving(false)
+    setDirty(false)
+    onSaved()
+  }
+
+  async function handleAISave() {
     setSaving(true)
     await supabase.from('master_documents')
       .update({ content: buildFullContent(), updated_at: new Date().toISOString() })
@@ -279,6 +299,7 @@ function MasterViewer({ doc, folderId, onSaved, onReviewResult }) {
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {driveMsg && <span className={`text-xs ${driveMsg.startsWith('Feil') ? 'text-red-500' : 'text-green-600'}`}>{driveMsg}</span>}
+          {versionMsg && <span className={`text-xs ${versionMsg.startsWith('Feil') ? 'text-red-500' : 'text-green-600'}`}>{versionMsg}</span>}
           <button onClick={handleDownloadDocx} disabled={exporting}
             className="text-xs border border-gray-200 rounded-lg px-3 py-1.5 text-gray-600 hover:border-gray-300 hover:text-gray-800 disabled:opacity-50 transition-colors">
             {exporting ? '...' : '⬇ Last ned'}
@@ -329,10 +350,16 @@ function MasterViewer({ doc, folderId, onSaved, onReviewResult }) {
             </span>
           )}
           {dirty && (
-            <button onClick={handleSave} disabled={saving}
-              className="bg-primary-500 text-white text-xs rounded-lg px-4 py-1.5 hover:bg-primary-600 disabled:opacity-50 transition-colors">
-              {saving ? 'Lagrer...' : 'Lagre'}
-            </button>
+            <div className="flex items-center gap-1.5">
+              <button onClick={handleSave} disabled={saving}
+                className="border border-primary-400 text-primary-600 text-xs rounded-lg px-3 py-1.5 hover:bg-primary-50 disabled:opacity-50 transition-colors">
+                {saving ? 'Lagrer...' : 'Lagre'}
+              </button>
+              <button onClick={handleAISave} disabled={saving || reviewing}
+                className="bg-primary-500 text-white text-xs rounded-lg px-3 py-1.5 hover:bg-primary-600 disabled:opacity-50 transition-colors flex items-center gap-1">
+                {saving ? 'Lagrer...' : '🤖 AI Lagring'}
+              </button>
+            </div>
           )}
         </div>
       </div>
