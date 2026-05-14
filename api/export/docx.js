@@ -219,15 +219,26 @@ function makeChangelogTable(changelogLines) {
 }
 
 export default async function handler(req, res) {
-  const { masterDocId } = req.query
+  const { masterDocId, versionId } = req.query
   if (!masterDocId) return res.status(400).json({ error: 'masterDocId kreves' })
 
   const { data: doc } = await supabase
     .from('master_documents').select('*, folders(name)').eq('id', masterDocId).single()
   if (!doc) return res.status(404).json({ error: 'Dokument ikke funnet' })
 
-  const { bodyParagraphs, changelogLines } = parseContent(doc.content)
-  const version = `${String(doc.version_major).padStart(2,'0')}.${String(doc.version_minor).padStart(2,'0')}`
+  // Hvis versionId er oppgitt, last ned den spesifikke versjonen
+  let content = doc.content
+  let version = `${String(doc.version_major).padStart(2,'0')}.${String(doc.version_minor).padStart(2,'0')}`
+  if (versionId) {
+    const { data: ver } = await supabase
+      .from('master_document_versions').select('content, version_label, version_major, version_minor').eq('id', versionId).single()
+    if (ver) {
+      content = ver.content
+      version = `${String(ver.version_major).padStart(2,'0')}.${String(ver.version_minor).padStart(2,'0')}`
+    }
+  }
+
+  const { bodyParagraphs, changelogLines } = parseContent(content)
 
   const children = [
     new Paragraph({

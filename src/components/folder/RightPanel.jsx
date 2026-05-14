@@ -417,6 +417,12 @@ function MasterViewer({ doc, folderId, onSaved, onReviewResult }) {
               <p className="text-xs text-gray-400">{new Date(previewVersion.created_at).toLocaleString('nb-NO')}</p>
             </div>
             <div className="flex items-center gap-2">
+              <a
+                href={`/api/export/docx?masterDocId=${doc.id}&versionId=${previewVersion.id}`}
+                className="text-sm text-gray-600 border border-gray-200 rounded-lg px-3 py-2 hover:bg-gray-50 transition-colors"
+              >
+                ⬇ Last ned
+              </a>
               <button
                 onClick={() => handleRestoreVersion(previewVersion)}
                 disabled={restoring}
