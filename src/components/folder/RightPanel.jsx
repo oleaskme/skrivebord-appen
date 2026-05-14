@@ -150,12 +150,13 @@ function MasterViewer({ doc, folderId, onSaved, onReviewResult }) {
   }, [])
 
   async function loadVersions() {
-    const { data } = await supabase
-      .from('master_document_versions')
-      .select('id, version_label, version_major, version_minor, created_at, content')
-      .eq('master_doc_id', doc.id)
-      .order('created_at', { ascending: false })
-    setVersions(data ?? [])
+    const res = await fetch('/api/ai/run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode: 'list_versions', masterDocId: doc.id }),
+    })
+    const data = await res.json()
+    setVersions(data.versions ?? [])
   }
 
   async function handleRestoreVersion(version) {

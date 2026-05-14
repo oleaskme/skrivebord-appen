@@ -114,6 +114,18 @@ export default async function handler(req, res) {
 
   const { folderId, masterDocId, inputDocIds, mode, question, history } = req.body
 
+  // ── Versjonshistorikk ──
+  if (mode === 'list_versions') {
+    if (!masterDocId) return res.status(400).json({ error: 'masterDocId kreves' })
+    const { data, error } = await supabaseAdmin
+      .from('master_document_versions')
+      .select('id, version_label, version_major, version_minor, created_at, content')
+      .eq('master_doc_id', masterDocId)
+      .order('created_at', { ascending: false })
+    if (error) return res.status(500).json({ error: error.message })
+    return res.json({ versions: data ?? [] })
+  }
+
   // ── Versjonssaving ──
   if (mode === 'create_version') {
     const { content, versionLabel, versionMajor, versionMinor, createdBy } = req.body
