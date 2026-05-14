@@ -280,32 +280,50 @@ Alle elementer skal tilhøre én gruppe. Ingen tomme grupper.`
 
     try {
       // Hent kontekst
-      const [{ data: tasks }, { data: risks }, { data: masters }] = await Promise.all([
-        supabase.from('tasks').select('id, title, status, priority, due_date, owner_id').eq('folder_id', folderId).neq('status', 'completed').is('parent_id', null),
-        supabase.from('risks').select('id, title, severity, status').eq('folder_id', folderId).neq('status', 'dismissed'),
+      const [{ data: tasks }, { data: risks }, { data: masters }, { data: members }] = await Promise.all([
+        supabase.from('tasks').select('id, title, status, priority, due_date, owner_id, description').eq('folder_id', folderId).neq('status', 'completed').is('parent_id', null),
+        supabase.from('risks').select('id, title, severity, status, description').eq('folder_id', folderId).neq('status', 'dismissed'),
         supabase.from('master_documents').select('id, name, content').eq('folder_id', folderId),
+        supabase.from('folder_members').select('user_id, users(name)').eq('folder_id', folderId),
       ])
 
+      const MAX_DOC_CHARS = 3000
       const context = `Du er Kaia, en AI-assistent som hjelper brukeren med å administrere prosjektmappen.
 
 ÅPNE OPPGAVER:
-${(tasks ?? []).map(t => `- [${t.id}] "${t.title}" | prioritet: ${t.priority ?? 'ikke satt'} | frist: ${t.due_date ?? 'ingen'} | status: ${t.status}`).join('\n') || 'Ingen'}
+${(tasks ?? []).map(t => `- [${t.id}] "${t.title}" | prioritet: ${t.priority ?? 'ikke satt'} | frist: ${t.due_date ?? 'ingen'} | status: ${t.status}${t.description ? ` | beskrivelse: ${t.description.slice(0, 100)}` : ''}`).join('\n') || 'Ingen'}
 
 RISIKOER:
-${(risks ?? []).map(r => `- [${r.id}] "${r.title}" | alvorlighet: ${r.severity} | status: ${r.status}`).join('\n') || 'Ingen'}
+${(risks ?? []).map(r => `- [${r.id}] "${r.title}" | alvorlighet: ${r.severity} | status: ${r.status}${r.description ? ` | beskrivelse: ${r.description.slice(0, 100)}` : ''}`).join('\n') || 'Ingen'}
 
 MASTER-DOKUMENTER:
-${(masters ?? []).map(m => `- [${m.id}] "${m.name}"`).join('\n') || 'Ingen'}
+${(masters ?? []).map(m => `- [${m.id}] "${m.name}"\n${(m.content ?? '').slice(0, MAX_DOC_CHARS)}${(m.content ?? '').length > MAX_DOC_CHARS ? '\n[...forkortet...]' : ''}`).join('\n\n') || 'Ingen'}
+
+MAPPEMEDLEMMER (mulige ansvarlige, bruk user_id som owner_id):
+${(members ?? []).map(m => `- [${m.user_id}] ${m.users?.name ?? 'Ukjent'}`).join('\n') || 'Ingen'}
 
 Du kan utføre handlinger for brukeren. Etter ditt svar kan du inkludere en handlingsblokk på dette formatet (kun hvis du faktisk skal utføre noe):
 
 ACTIONS:
-[{"type":"update_task_status","id":"<uuid>","status":"completed|open|needs_review"},
- {"type":"update_task_priority","id":"<uuid>","priority":"high|medium|low"},
- {"type":"update_risk_status","id":"<uuid>","status":"confirmed|closed|dismissed"}]
+[
+  {"type":"update_task_status","id":"<uuid>","status":"completed|open|needs_review"},
+  {"type":"update_task_priority","id":"<uuid>","priority":"high|medium|low"},
+  {"type":"update_task_details","id":"<uuid>","title":"...","due_date":"YYYY-MM-DD or null","owner_id":"<uuid> or null","description":"..."},
+  {"type":"create_task","title":"...","priority":"high|medium|low","due_date":"YYYY-MM-DD or null","owner_id":"<uuid> or null","description":"..."},
+  {"type":"delete_task","id":"<uuid>"},
+  {"type":"update_risk_status","id":"<uuid>","status":"confirmed|closed|dismissed"},
+  {"type":"update_risk_details","id":"<uuid>","title":"...","severity":"high|medium|low","description":"..."},
+  {"type":"create_risk","title":"...","severity":"high|medium|low","description":"..."},
+  {"type":"edit_document","id":"<uuid>","content":"<html>..."},
+  {"type":"create_document","name":"...","content":"<html>..."}
+]
 END_ACTIONS
 
-Svar alltid på norsk. Vær konkret og handlingsorientert.`
+Regler for handlinger:
+- Bruk kun handlinger som er eksplisitt bedt om av brukeren.
+- For edit_document: returner komplett HTML-innhold for dokumentet.
+- Felter som ikke skal endres i update_*-handlinger kan utelates.
+- Svar alltid på norsk. Vær konkret og handlingsorientert.`
 
       const messages = [
         ...history.map(h => ({ role: h.role, content: h.content })),
@@ -336,9 +354,61 @@ Svar alltid på norsk. Vær konkret og handlingsorientert.`
             } else if (action.type === 'update_task_priority' && action.id && action.priority) {
               await supabase.from('tasks').update({ priority: action.priority }).eq('id', action.id)
               actionsExecuted.push({ type: action.type, id: action.id })
+            } else if (action.type === 'update_task_details' && action.id) {
+              const fields = {}
+              if (action.title) fields.title = action.title
+              if ('due_date' in action) fields.due_date = action.due_date
+              if ('owner_id' in action) fields.owner_id = action.owner_id
+              if ('description' in action) fields.description = action.description
+              if (Object.keys(fields).length) {
+                await supabase.from('tasks').update(fields).eq('id', action.id)
+                actionsExecuted.push({ type: action.type, id: action.id })
+              }
+            } else if (action.type === 'create_task' && action.title) {
+              const { data: newTask } = await supabase.from('tasks').insert({
+                folder_id: folderId,
+                title: action.title,
+                priority: action.priority ?? null,
+                due_date: action.due_date ?? null,
+                owner_id: action.owner_id ?? null,
+                description: action.description ?? null,
+                status: 'open',
+              }).select('id').single()
+              actionsExecuted.push({ type: action.type, id: newTask?.id })
+            } else if (action.type === 'delete_task' && action.id) {
+              await supabase.from('tasks').delete().eq('id', action.id)
+              actionsExecuted.push({ type: action.type, id: action.id })
             } else if (action.type === 'update_risk_status' && action.id && action.status) {
               await supabase.from('risks').update({ status: action.status }).eq('id', action.id)
               actionsExecuted.push({ type: action.type, id: action.id })
+            } else if (action.type === 'update_risk_details' && action.id) {
+              const fields = {}
+              if (action.title) fields.title = action.title
+              if (action.severity) fields.severity = action.severity
+              if ('description' in action) fields.description = action.description
+              if (Object.keys(fields).length) {
+                await supabase.from('risks').update(fields).eq('id', action.id)
+                actionsExecuted.push({ type: action.type, id: action.id })
+              }
+            } else if (action.type === 'create_risk' && action.title) {
+              const { data: newRisk } = await supabase.from('risks').insert({
+                folder_id: folderId,
+                title: action.title,
+                severity: action.severity ?? 'medium',
+                description: action.description ?? null,
+                status: 'open',
+              }).select('id').single()
+              actionsExecuted.push({ type: action.type, id: newRisk?.id })
+            } else if (action.type === 'edit_document' && action.id && action.content) {
+              await supabase.from('master_documents').update({ content: action.content }).eq('id', action.id)
+              actionsExecuted.push({ type: action.type, id: action.id })
+            } else if (action.type === 'create_document' && action.name) {
+              const { data: newDoc } = await supabase.from('master_documents').insert({
+                folder_id: folderId,
+                name: action.name,
+                content: action.content ?? '',
+              }).select('id').single()
+              actionsExecuted.push({ type: action.type, id: newDoc?.id })
             }
           }
         } catch {}
