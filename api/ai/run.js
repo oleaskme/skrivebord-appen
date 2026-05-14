@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk'
-import { supabase } from '../_lib/supabase.js'
+import { supabase, supabaseAdmin } from '../_lib/supabase.js'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
@@ -146,10 +146,10 @@ ${list}`
         const task = indexed[index]
         if (!task) continue
         if (priority === 'uncertain') {
-          await supabase.from('tasks').update({ status: 'needs_review' }).eq('id', task.id)
+          await supabaseAdmin.from('tasks').update({ status: 'needs_review' }).eq('id', task.id)
           uncertain++
         } else if (['high', 'medium', 'low'].includes(priority)) {
-          await supabase.from('tasks').update({ priority }).eq('id', task.id)
+          await supabaseAdmin.from('tasks').update({ priority }).eq('id', task.id)
           certain++
         }
       }
@@ -349,11 +349,13 @@ Regler for handlinger:
           const actions = JSON.parse(actionsMatch[1].trim())
           for (const action of actions) {
             if (action.type === 'update_task_status' && action.id && action.status) {
-              await supabase.from('tasks').update({ status: action.status }).eq('id', action.id)
-              actionsExecuted.push({ type: action.type, id: action.id })
+              const { error } = await supabaseAdmin.from('tasks').update({ status: action.status }).eq('id', action.id)
+              if (!error) actionsExecuted.push({ type: action.type, id: action.id })
+              else console.error('update_task_status error:', error.message)
             } else if (action.type === 'update_task_priority' && action.id && action.priority) {
-              await supabase.from('tasks').update({ priority: action.priority }).eq('id', action.id)
-              actionsExecuted.push({ type: action.type, id: action.id })
+              const { error } = await supabaseAdmin.from('tasks').update({ priority: action.priority }).eq('id', action.id)
+              if (!error) actionsExecuted.push({ type: action.type, id: action.id })
+              else console.error('update_task_priority error:', error.message)
             } else if (action.type === 'update_task_details' && action.id) {
               const fields = {}
               if (action.title) fields.title = action.title
@@ -361,11 +363,12 @@ Regler for handlinger:
               if ('owner_id' in action) fields.owner_id = action.owner_id
               if ('description' in action) fields.description = action.description
               if (Object.keys(fields).length) {
-                await supabase.from('tasks').update(fields).eq('id', action.id)
-                actionsExecuted.push({ type: action.type, id: action.id })
+                const { error } = await supabaseAdmin.from('tasks').update(fields).eq('id', action.id)
+                if (!error) actionsExecuted.push({ type: action.type, id: action.id })
+                else console.error('update_task_details error:', error.message)
               }
             } else if (action.type === 'create_task' && action.title) {
-              const { data: newTask } = await supabase.from('tasks').insert({
+              const { data: newTask, error } = await supabaseAdmin.from('tasks').insert({
                 folder_id: folderId,
                 title: action.title,
                 priority: action.priority ?? null,
@@ -374,41 +377,48 @@ Regler for handlinger:
                 description: action.description ?? null,
                 status: 'open',
               }).select('id').single()
-              actionsExecuted.push({ type: action.type, id: newTask?.id })
+              if (!error) actionsExecuted.push({ type: action.type, id: newTask?.id })
+              else console.error('create_task error:', error.message)
             } else if (action.type === 'delete_task' && action.id) {
-              await supabase.from('tasks').delete().eq('id', action.id)
-              actionsExecuted.push({ type: action.type, id: action.id })
+              const { error } = await supabaseAdmin.from('tasks').delete().eq('id', action.id)
+              if (!error) actionsExecuted.push({ type: action.type, id: action.id })
+              else console.error('delete_task error:', error.message)
             } else if (action.type === 'update_risk_status' && action.id && action.status) {
-              await supabase.from('risks').update({ status: action.status }).eq('id', action.id)
-              actionsExecuted.push({ type: action.type, id: action.id })
+              const { error } = await supabaseAdmin.from('risks').update({ status: action.status }).eq('id', action.id)
+              if (!error) actionsExecuted.push({ type: action.type, id: action.id })
+              else console.error('update_risk_status error:', error.message)
             } else if (action.type === 'update_risk_details' && action.id) {
               const fields = {}
               if (action.title) fields.title = action.title
               if (action.severity) fields.severity = action.severity
               if ('description' in action) fields.description = action.description
               if (Object.keys(fields).length) {
-                await supabase.from('risks').update(fields).eq('id', action.id)
-                actionsExecuted.push({ type: action.type, id: action.id })
+                const { error } = await supabaseAdmin.from('risks').update(fields).eq('id', action.id)
+                if (!error) actionsExecuted.push({ type: action.type, id: action.id })
+                else console.error('update_risk_details error:', error.message)
               }
             } else if (action.type === 'create_risk' && action.title) {
-              const { data: newRisk } = await supabase.from('risks').insert({
+              const { data: newRisk, error } = await supabaseAdmin.from('risks').insert({
                 folder_id: folderId,
                 title: action.title,
                 severity: action.severity ?? 'medium',
                 description: action.description ?? null,
                 status: 'open',
               }).select('id').single()
-              actionsExecuted.push({ type: action.type, id: newRisk?.id })
+              if (!error) actionsExecuted.push({ type: action.type, id: newRisk?.id })
+              else console.error('create_risk error:', error.message)
             } else if (action.type === 'edit_document' && action.id && action.content) {
-              await supabase.from('master_documents').update({ content: action.content }).eq('id', action.id)
-              actionsExecuted.push({ type: action.type, id: action.id })
+              const { error } = await supabaseAdmin.from('master_documents').update({ content: action.content }).eq('id', action.id)
+              if (!error) actionsExecuted.push({ type: action.type, id: action.id })
+              else console.error('edit_document error:', error.message)
             } else if (action.type === 'create_document' && action.name) {
-              const { data: newDoc } = await supabase.from('master_documents').insert({
+              const { data: newDoc, error } = await supabaseAdmin.from('master_documents').insert({
                 folder_id: folderId,
                 name: action.name,
                 content: action.content ?? '',
               }).select('id').single()
-              actionsExecuted.push({ type: action.type, id: newDoc?.id })
+              if (!error) actionsExecuted.push({ type: action.type, id: newDoc?.id })
+              else console.error('create_document error:', error.message)
             }
           }
         } catch {}
@@ -561,7 +571,7 @@ Oppdater MASTER-dokumentet basert på INPUT-dokumentene og returner JSON.`
     result.updated_content = normalizeToHtml(result.updated_content)
 
     // Logg AI-kjøringen i databasen
-    await supabase.from('ai_runs').insert({
+    await supabaseAdmin.from('ai_runs').insert({
       folder_id: folderId,
       master_doc_id: masterDocId,
       input_doc_ids: inputDocIds,
