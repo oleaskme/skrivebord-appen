@@ -124,7 +124,6 @@ export default async function handler(req, res) {
       version_label: versionLabel,
       version_major: versionMajor ?? 1,
       version_minor: versionMinor ?? 0,
-      created_by: createdBy ?? null,
     }).select('id').single()
     if (error) return res.status(500).json({ error: error.message })
     return res.json({ id: data.id })
