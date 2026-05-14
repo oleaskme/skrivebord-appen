@@ -94,6 +94,21 @@ Regler:
 4. Hvis svaret ikke finnes i dokumentene, si det tydelig.
 5. Svar konsist og strukturert.`
 
+async function withRetry(fn, maxAttempts = 3) {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await fn()
+    } catch (err) {
+      const isOverloaded = err.status === 529 || err.message?.includes('overloaded')
+      if (isOverloaded && attempt < maxAttempts) {
+        await new Promise(r => setTimeout(r, attempt * 2000))
+        continue
+      }
+      throw err
+    }
+  }
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Metode ikke støttet' })
 
@@ -330,12 +345,12 @@ Regler for handlinger:
         { role: 'user', content: message },
       ]
 
-      const response = await anthropic.messages.create({
+      const response = await withRetry(() => anthropic.messages.create({
         model: 'claude-sonnet-4-6',
         max_tokens: 16000,
         system: context,
         messages,
-      })
+      }))
 
       const fullText = response.content[0].text
 
