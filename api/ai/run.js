@@ -108,6 +108,8 @@ export default async function handler(req, res) {
         .select('id, title, due_date')
         .eq('folder_id', folderId)
         .neq('status', 'completed')
+        .is('priority', null)
+        .is('parent_id', null)
 
       if (!taskRows?.length) return res.json({ certain: 0, uncertain: 0 })
 
