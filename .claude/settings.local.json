@@ -8,7 +8,12 @@
       "Bash(git push *)",
       "Bash(node -e \"const pkg = require\\('./node_modules/@tiptap/react/package.json'\\); console.log\\(pkg.version, pkg.exports ? 'has exports' : 'no exports'\\)\")",
       "Bash(node *)",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "mcp__claude_ai_Supabase__list_projects",
+      "mcp__claude_ai_Supabase__apply_migration",
+      "mcp__claude_ai_Supabase__execute_sql",
+      "Bash(xargs cat *)",
+      "Bash(npx vercel *)"
     ]
   }
 }

@@ -177,10 +177,11 @@ function MasterViewer({ doc, folderId, onSaved, onReviewResult }) {
     setVersionMsg(null)
     try {
       const label = `v${formatVersion(doc.version_major, doc.version_minor)} — ${new Date().toLocaleDateString('nb-NO')}`
-      const res = await fetch('/api/versions/create', {
+      const res = await fetch('/api/ai/run', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          mode: 'create_version',
           masterDocId: doc.id,
           content: buildFullContent(),
           versionLabel: label,
