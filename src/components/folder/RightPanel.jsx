@@ -259,6 +259,14 @@ function MasterViewer({ doc, folderId, onSaved, onReviewResult }) {
   async function handleDownloadDocx() {
     setExporting(true)
     try {
+      // Lagre ulagrede endringer først slik at nedlastingen matcher det som vises
+      if (dirty) {
+        await supabase.from('master_documents')
+          .update({ content: buildFullContent(), updated_at: new Date().toISOString() })
+          .eq('id', doc.id)
+        setDirty(false)
+        onSaved()
+      }
       const res = await fetch(`/api/export/docx?masterDocId=${doc.id}`)
       if (!res.ok) throw new Error('Eksport feilet')
       const blob = await res.blob()
