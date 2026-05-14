@@ -10,27 +10,27 @@ const CHANGELOG_SEP = '--- Endringslogg ---'
 // ── Stilguide (kravspesifikasjon_v03) ──────────────────────────────────────
 const S = {
   // Farger (uten #)
-  h1Color:    '2E4057',
-  h2Color:    '2E4057',
-  h3Color:    '4A6080',
-  bodyColor:  '444441',
+  h1Color:    '1E3A5F',
+  h2Color:    '1E3A5F',
+  h3Color:    '2E5F8A',
+  bodyColor:  '2D2D2D',
   footerColor:'888888',
-  tableHeader:'E6F1FB',
-  tableBorder:'CCCCCC',
+  tableHeader:'D6E8F7',
+  tableBorder:'BBBBBB',
   // Størrelser i half-points (pt × 2)
-  h1Size:     36,  // 18 pt
-  h2Size:     28,  // 14 pt
-  h3Size:     24,  // 12 pt
-  bodySize:   24,  // 12 pt
+  h1Size:     44,  // 22 pt
+  h2Size:     34,  // 17 pt
+  h3Size:     28,  // 14 pt
+  bodySize:   22,  // 11 pt
   footerSize: 18,  //  9 pt
   // Spacing i twips (pt × 20)
-  h1Before: 400, h1After: 200,
-  h2Before: 300, h2After: 150,
-  h3Before: 200, h3After: 100,
-  bodyAfter: 200,
+  h1Before: 560, h1After: 280,
+  h2Before: 480, h2After: 180,
+  h3Before: 320, h3After: 120,
+  bodyAfter: 240,
 }
 
-const MARGIN = convertInchesToTwip(1)  // 2,54 cm ≈ 1 inch = 1440 twips
+const MARGIN = convertInchesToTwip(1.1)  // ~2,8 cm
 
 const border = (color = S.tableBorder) => ({
   style: BorderStyle.SINGLE, size: 1, color,
@@ -243,12 +243,13 @@ export default async function handler(req, res) {
   const children = [
     new Paragraph({
       heading: HeadingLevel.HEADING_1,
-      spacing: { before: 0, after: S.h1After },
+      spacing: { before: 0, after: 160 },
+      border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: '1E3A5F' } },
       children: [new TextRun({ text: doc.name, font: 'Arial', size: S.h1Size, color: S.h1Color, bold: true })],
     }),
     new Paragraph({
-      spacing: { after: 400 },
-      children: [new TextRun({ text: `Mappe: ${doc.folders?.name ?? ''}   |   Versjon: v${version}   |   ${new Date().toLocaleDateString('nb-NO')}`, font: 'Arial', size: 18, color: S.footerColor })],
+      spacing: { before: 160, after: 480 },
+      children: [new TextRun({ text: `Versjon: v${version}   |   ${new Date().toLocaleDateString('nb-NO')}`, font: 'Arial', size: 20, color: S.footerColor, italics: true })],
     }),
     ...bodyParagraphs,
   ]
