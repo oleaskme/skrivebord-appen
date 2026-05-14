@@ -43,6 +43,7 @@ export default function TimelinePanel({ folderId, members = [] }) {
         .from('tasks')
         .select('id, title, due_date, status, priority, owner_id')
         .eq('folder_id', folderId)
+        .is('parent_id', null)
         .not('due_date', 'is', null)
         .in('status', ['open', 'needs_review'])
         .order('due_date', { ascending: true })
@@ -183,7 +184,9 @@ export default function TimelinePanel({ folderId, members = [] }) {
                     {num}
                   </text>
                   {/* Label starting at x (left-aligned from stem top) */}
-                  <text x={x + 6} y={lineEnd - 6} textAnchor="start" fontSize={FONT_SIZE} fill={textColor} fontWeight="600">
+                  <text x={x + 6} y={lineEnd - 6} textAnchor="start" fontSize={FONT_SIZE} fill={textColor}
+                    fontWeight={task.priority === 'high' ? '800' : '500'}
+                    fontStyle={task.priority === 'low' ? 'italic' : 'normal'}>
                     {num} — {shortTitle(task.title)}
                   </text>
                 </g>

@@ -39,7 +39,9 @@ export default function RisksPanel({ folderId, members = [], inputDocs = [] }) {
   const [approvedMerges, setApprovedMerges] = useState([])
   const [applying, setApplying]   = useState(false)
   const [editingRisk, setEditingRisk] = useState(null)
+  const [editingSubrisk, setEditingSubrisk] = useState(null)
   const [renamingGroup, setRenamingGroup] = useState(null) // { oldName, newName }
+  const [showClosed, setShowClosed] = useState(false)
 
   const loadRisks = useCallback(async () => {
     const { data } = await supabase
@@ -52,9 +54,10 @@ export default function RisksPanel({ folderId, members = [], inputDocs = [] }) {
     setLoading(false)
   }, [folderId])
 
-  const [showClosed, setShowClosed] = useState(false)
-
   useEffect(() => { loadRisks() }, [loadRisks])
+
+  const topLevel = risks.filter(r => !r.parent_id)
+  const subrisksOf = (id) => risks.filter(r => r.parent_id === id)
 
   async function handleConfirm(risk) {
     await supabase.from('risks').update({ status: 'confirmed' }).eq('id', risk.id)
@@ -96,6 +99,18 @@ export default function RisksPanel({ folderId, members = [], inputDocs = [] }) {
   async function handleEditSave(id, fields) {
     await supabase.from('risks').update(fields).eq('id', id)
     setRisks(prev => prev.map(r => r.id === id ? { ...r, ...fields } : r))
+  }
+
+  async function handleAddSubrisk(parentId, fields) {
+    const { data } = await supabase.from('risks').insert({
+      folder_id: folderId,
+      parent_id: parentId,
+      status: 'confirmed',
+      source_type: 'manual',
+      owner_id: activeUser.id,
+      ...fields,
+    }).select().single()
+    if (data) setRisks(prev => [data, ...prev])
   }
 
   async function handleRenameGroup(oldName, newName) {
@@ -158,10 +173,24 @@ export default function RisksPanel({ folderId, members = [], inputDocs = [] }) {
     }
   }
 
-  const proposed  = risks.filter(r => r.status === 'proposed')
-  const confirmed = risks.filter(r => r.status === 'confirmed')
+  const proposed  = topLevel.filter(r => r.status === 'proposed')
+  const confirmed = topLevel.filter(r => r.status === 'confirmed')
   const active    = [...proposed, ...confirmed]
-  const closed    = risks.filter(r => r.status === 'closed')
+  const closed    = topLevel.filter(r => r.status === 'closed')
+
+  function riskItemProps(r) {
+    return {
+      risk: r,
+      members,
+      inputDocs,
+      subrisks: subrisksOf(r.id),
+      onConfirm: handleConfirm,
+      onDismiss: handleDismiss,
+      onClose: handleClose,
+      onEdit: () => setEditingRisk(r),
+      onEditSubrisk: (sub) => setEditingSubrisk(sub),
+    }
+  }
 
   function renderByPriority() {
     const byLevel = { high: [], medium: [], low: [] }
@@ -174,7 +203,7 @@ export default function RisksPanel({ folderId, members = [], inputDocs = [] }) {
             {SEVERITY[sev].label} ({items.length})
           </p>
           <div className="space-y-2">
-            {items.map(r => <RiskItem key={r.id} risk={r} members={members} inputDocs={inputDocs} onConfirm={handleConfirm} onDismiss={handleDismiss} onClose={handleClose} onEdit={() => setEditingRisk(r)} />)}
+            {items.map(r => <RiskItem key={r.id} {...riskItemProps(r)} />)}
           </div>
         </div>
       ))
@@ -241,7 +270,7 @@ export default function RisksPanel({ folderId, members = [], inputDocs = [] }) {
           )}
           <div className="space-y-2">
             {[...items].sort((a, b) => (SEV_ORDER[a.severity] ?? 2) - (SEV_ORDER[b.severity] ?? 2))
-              .map(r => <RiskItem key={r.id} risk={r} members={members} inputDocs={inputDocs} onConfirm={handleConfirm} onDismiss={handleDismiss} onClose={handleClose} onEdit={() => setEditingRisk(r)} />)}
+              .map(r => <RiskItem key={r.id} {...riskItemProps(r)} />)}
           </div>
         </div>
       )
@@ -268,7 +297,7 @@ export default function RisksPanel({ folderId, members = [], inputDocs = [] }) {
         <p className="text-sm font-bold text-gray-600 uppercase tracking-wide mb-2">{name} ({items.length})</p>
         <div className="space-y-2">
           {[...items].sort((a, b) => (SEV_ORDER[a.severity] ?? 2) - (SEV_ORDER[b.severity] ?? 2))
-            .map(r => <RiskItem key={r.id} risk={r} members={members} inputDocs={inputDocs} onConfirm={handleConfirm} onDismiss={handleDismiss} onClose={handleClose} onEdit={() => setEditingRisk(r)} />)}
+            .map(r => <RiskItem key={r.id} {...riskItemProps(r)} />)}
         </div>
       </div>
     ))
@@ -398,7 +427,7 @@ export default function RisksPanel({ folderId, members = [], inputDocs = [] }) {
               <div className="space-y-2">
                 {closed
                   .sort((a, b) => new Date(b.closed_at) - new Date(a.closed_at))
-                  .map(r => <RiskItem key={r.id} risk={r} members={members} onDismiss={handleDismiss} onEdit={() => setEditingRisk(r)} />)
+                  .map(r => <RiskItem key={r.id} risk={r} members={members} subrisks={subrisksOf(r.id)} onDismiss={handleDismiss} onEdit={() => setEditingRisk(r)} onEditSubrisk={(sub) => setEditingSubrisk(sub)} />)
                 }
               </div>
             )}
@@ -412,17 +441,32 @@ export default function RisksPanel({ folderId, members = [], inputDocs = [] }) {
           groups={[...new Set(risks.filter(r => r.group_name).map(r => r.group_name))].sort((a, b) => a.localeCompare(b, 'nb'))}
           members={members}
           inputDocs={inputDocs}
+          subrisks={subrisksOf(editingRisk.id)}
           onClose={() => setEditingRisk(null)}
           onSave={handleEditSave}
           onDelete={handleDismiss}
           onCloseRisk={handleClose}
+          onAddSubrisk={handleAddSubrisk}
+          onEditSubrisk={(sub) => { setEditingRisk(null); setEditingSubrisk(sub) }}
+        />
+      )}
+
+      {editingSubrisk && (
+        <SubriskEditModal
+          risk={editingSubrisk}
+          members={members}
+          onClose={() => setEditingSubrisk(null)}
+          onSave={handleEditSave}
+          onDelete={(risk) => { handleDismiss(risk); setEditingSubrisk(null) }}
+          onCloseRisk={(risk) => { handleClose(risk); setEditingSubrisk(null) }}
         />
       )}
     </div>
   )
 }
 
-function RiskEditModal({ risk, groups, members, inputDocs = [], onClose, onSave, onDelete, onCloseRisk }) {
+// ---- RiskEditModal ----
+function RiskEditModal({ risk, groups, members, inputDocs = [], subrisks = [], onClose, onSave, onDelete, onCloseRisk, onAddSubrisk, onEditSubrisk }) {
   const [title, setTitle]       = useState(risk.title)
   const [severity, setSeverity] = useState(risk.severity ?? 'medium')
   const [dueDate, setDueDate]   = useState(risk.due_date ?? '')
@@ -432,6 +476,12 @@ function RiskEditModal({ risk, groups, members, inputDocs = [], onClose, onSave,
   const [saving, setSaving]     = useState(false)
   const [confirming, setConfirming] = useState(false)
   const [confirmingClose, setConfirmingClose] = useState(false)
+  const [showSubriskForm, setShowSubriskForm] = useState(false)
+  const [subTitle, setSubTitle] = useState('')
+  const [subSeverity, setSubSeverity] = useState('medium')
+  const [subDue, setSubDue]     = useState('')
+  const [subOwner, setSubOwner] = useState('')
+  const [addingSub, setAddingSub] = useState(false)
 
   const resolvedGroup = group === '__new__' ? newGroup.trim() : (group || null)
 
@@ -442,9 +492,30 @@ function RiskEditModal({ risk, groups, members, inputDocs = [], onClose, onSave,
     onClose()
   }
 
+  async function handleAddSubrisk(e) {
+    e.preventDefault()
+    if (!subTitle.trim()) return
+    setAddingSub(true)
+    try {
+      await onAddSubrisk(risk.id, {
+        title: subTitle.trim(),
+        severity: subSeverity,
+        due_date: subDue || null,
+        owner_id: subOwner || null,
+      })
+      setSubTitle('')
+      setSubSeverity('medium')
+      setSubDue('')
+      setSubOwner('')
+      setShowSubriskForm(false)
+    } finally {
+      setAddingSub(false)
+    }
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4" onClick={e => e.stopPropagation()}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between">
           <h3 className="font-bold text-gray-800 text-lg">Rediger risiko</h3>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600">✕</button>
@@ -527,6 +598,74 @@ function RiskEditModal({ risk, groups, members, inputDocs = [], onClose, onSave,
               </select>
             </div>
           )}
+
+          {/* Underrisikoer-seksjon */}
+          <div>
+            <label className="block text-sm font-medium text-gray-600 mb-1">Underrisikoer</label>
+            {subrisks.length === 0 && !showSubriskForm && (
+              <p className="text-xs text-gray-400 italic mb-1">Ingen underrisikoer ennå</p>
+            )}
+            {subrisks.length > 0 && (
+              <div className="space-y-1 mb-2">
+                {subrisks.map(sub => {
+                  const s = SEVERITY[sub.severity] ?? SEVERITY.medium
+                  return (
+                    <div key={sub.id}
+                      onClick={() => onEditSubrisk(sub)}
+                      className={`flex items-center gap-2 px-2 py-1.5 border rounded-lg cursor-pointer transition-colors hover:opacity-90 ${s.bg} ${s.border}`}>
+                      <span className={`w-2 h-2 rounded-full shrink-0 ${s.dot}`} />
+                      <span className={`text-xs flex-1 font-medium ${s.text}`}>{sub.title}</span>
+                      {sub.due_date && (
+                        <span className="text-xs text-gray-400">{new Date(sub.due_date).toLocaleDateString('nb-NO')}</span>
+                      )}
+                      <span className={`text-xs font-semibold shrink-0 ${s.text}`}>{s.label}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+            {showSubriskForm ? (
+              <form onSubmit={handleAddSubrisk} className="space-y-2 border border-gray-200 rounded-lg p-2 bg-gray-50">
+                <input autoFocus type="text" placeholder="Beskriv underrisikoen..."
+                  value={subTitle} onChange={e => setSubTitle(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400" />
+                <div className="flex gap-2">
+                  <input type="date" value={subDue} onChange={e => setSubDue(e.target.value)}
+                    className="border border-gray-300 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary-400" />
+                  <select value={subSeverity} onChange={e => setSubSeverity(e.target.value)}
+                    className="border border-gray-300 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary-400">
+                    <option value="high">Høy</option>
+                    <option value="medium">Middels</option>
+                    <option value="low">Lav</option>
+                  </select>
+                  {members.length > 0 && (
+                    <select value={subOwner} onChange={e => setSubOwner(e.target.value)}
+                      className="border border-gray-300 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary-400">
+                      <option value="">– Ansvarlig –</option>
+                      {members.map(m => (
+                        <option key={m.user_id} value={m.user_id}>{m.users?.name ?? m.user_id}</option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <button type="submit" disabled={addingSub || !subTitle.trim()}
+                    className="flex-1 bg-primary-500 text-white rounded-lg py-1.5 text-xs font-semibold hover:bg-primary-600 disabled:opacity-50 transition-colors">
+                    {addingSub ? 'Lagrer...' : 'Lagre underrisiko'}
+                  </button>
+                  <button type="button" onClick={() => setShowSubriskForm(false)}
+                    className="text-xs text-gray-400 hover:text-gray-600 border border-gray-200 rounded-lg px-3 py-1.5 transition-colors">
+                    Avbryt
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <button onClick={() => setShowSubriskForm(true)}
+                className="text-xs text-primary-600 hover:text-primary-800 font-medium transition-colors">
+                + Legg til underrisiko
+              </button>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-2 pt-2 flex-wrap">
           {!confirming && !confirmingClose && (
@@ -569,66 +708,202 @@ function RiskEditModal({ risk, groups, members, inputDocs = [], onClose, onSave,
   )
 }
 
-function RiskItem({ risk, members, inputDocs = [], onConfirm, onDismiss, onClose, onEdit }) {
+// ---- SubriskEditModal ----
+function SubriskEditModal({ risk, members, onClose, onSave, onDelete, onCloseRisk }) {
+  const [title, setTitle]       = useState(risk.title)
+  const [severity, setSeverity] = useState(risk.severity ?? 'medium')
+  const [dueDate, setDueDate]   = useState(risk.due_date ?? '')
+  const [ownerId, setOwnerId]   = useState(risk.owner_id ?? '')
+  const [saving, setSaving]     = useState(false)
+  const [confirming, setConfirming] = useState(false)
+  const [confirmingClose, setConfirmingClose] = useState(false)
+
+  async function handleSave() {
+    if (!title.trim()) return
+    setSaving(true)
+    await onSave(risk.id, { title: title.trim(), severity, due_date: dueDate || null, owner_id: ownerId || null })
+    onClose()
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <h3 className="font-bold text-gray-800 text-lg">Rediger underrisiko</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">✕</button>
+        </div>
+        <div className="space-y-3">
+          <div>
+            <label className="block text-sm font-medium text-gray-600 mb-1">Beskrivelse</label>
+            <textarea autoFocus rows={3} value={title} onChange={e => setTitle(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 resize-none" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-600 mb-1">Frist</label>
+            <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-600 mb-1">Alvorlighetsgrad</label>
+            <select value={severity} onChange={e => setSeverity(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400">
+              <option value="high">Høy</option>
+              <option value="medium">Middels</option>
+              <option value="low">Lav</option>
+            </select>
+          </div>
+          {members.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium text-gray-600 mb-1">Ansvarlig</label>
+              <select value={ownerId} onChange={e => setOwnerId(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400">
+                <option value="">– Ikke tildelt –</option>
+                {members.map(m => (
+                  <option key={m.user_id} value={m.user_id}>{m.users?.name ?? m.user_id}</option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
+        <div className="flex items-center gap-2 pt-2 flex-wrap">
+          {!confirming && !confirmingClose && (
+            <>
+              <button onClick={() => setConfirmingClose(true)}
+                className="text-sm text-green-600 hover:text-green-800 border border-green-200 rounded-lg px-3 py-2 transition-colors">
+                Lukk risiko
+              </button>
+              <button onClick={() => setConfirming(true)}
+                className="text-sm text-red-400 hover:text-red-600 border border-red-200 rounded-lg px-3 py-2 transition-colors">
+                Avvis
+              </button>
+            </>
+          )}
+          {confirmingClose && (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-500">Merk som lukket?</span>
+              <button onClick={() => onCloseRisk(risk)}
+                className="text-sm text-green-600 font-semibold hover:text-green-800">Ja, lukk</button>
+              <button onClick={() => setConfirmingClose(false)} className="text-sm text-gray-400 hover:text-gray-600">Avbryt</button>
+            </div>
+          )}
+          {confirming && (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-500">Sikker?</span>
+              <button onClick={() => onDelete(risk)}
+                className="text-sm text-red-500 font-semibold hover:text-red-700">Ja, avvis</button>
+              <button onClick={() => setConfirming(false)} className="text-sm text-gray-400 hover:text-gray-600">Avbryt</button>
+            </div>
+          )}
+          <div className="flex-1" />
+          <button onClick={onClose} className="text-sm text-gray-500 border border-gray-200 rounded-lg px-4 py-2 hover:bg-gray-50 transition-colors">Avbryt</button>
+          <button onClick={handleSave} disabled={saving || !title.trim()}
+            className="text-sm bg-primary-500 text-white rounded-lg px-4 py-2 font-semibold hover:bg-primary-600 disabled:opacity-50 transition-colors">
+            {saving ? 'Lagrer...' : 'Lagre'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ---- RiskItem ----
+function RiskItem({ risk, members, inputDocs = [], subrisks = [], onConfirm, onDismiss, onClose, onEdit, onEditSubrisk }) {
+  const [expanded, setExpanded] = useState(false)
   const s = SEVERITY[risk.severity] ?? SEVERITY.medium
   const isClosed = risk.status === 'closed'
+  const hasSubrisks = subrisks.length > 0
+
   return (
-    <div
-      onClick={!isClosed ? onEdit : undefined}
-      className={`p-3 border rounded-lg transition-opacity ${isClosed ? 'opacity-60 bg-gray-50 border-gray-200' : `cursor-pointer hover:opacity-90 ${s.bg} ${s.border}`}`}
-    >
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex items-start gap-2 flex-1">
-          <span className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${isClosed ? 'bg-gray-400' : s.dot}`} />
-          <p className={`text-sm font-medium ${isClosed ? 'text-gray-500 line-through' : s.text}`}>{risk.title}</p>
-        </div>
-        <span className={`text-xs font-semibold uppercase shrink-0 ${isClosed ? 'text-gray-400' : s.text}`}>
-          {isClosed ? 'Lukket' : s.label}
-        </span>
-      </div>
-      <div className="flex items-center gap-3 mt-2 ml-4 flex-wrap">
-        {isClosed ? (
-          <span className="text-xs text-gray-400">
-            Lukket {new Date(risk.closed_at).toLocaleString('nb-NO', { dateStyle: 'short', timeStyle: 'short' })}
-          </span>
-        ) : (
-          <>
-            {risk.status === 'proposed' && (
-              <button onClick={e => { e.stopPropagation(); onConfirm(risk) }}
-                className="text-xs text-green-600 hover:text-green-800 font-medium transition-colors">
-                ✓ Bekreft
+    <div>
+      <div
+        onClick={!isClosed ? onEdit : undefined}
+        className={`p-3 border rounded-lg transition-opacity ${isClosed ? 'opacity-60 bg-gray-50 border-gray-200' : `cursor-pointer hover:opacity-90 ${s.bg} ${s.border}`}`}
+      >
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex items-start gap-2 flex-1">
+            <span className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${isClosed ? 'bg-gray-400' : s.dot}`} />
+            <p className={`text-sm font-medium ${isClosed ? 'text-gray-500 line-through' : s.text}`}>{risk.title}</p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {hasSubrisks && !isClosed && (
+              <button
+                onClick={e => { e.stopPropagation(); setExpanded(v => !v) }}
+                className="text-xs text-gray-400 hover:text-gray-600 px-1"
+                title={expanded ? 'Skjul underrisikoer' : 'Vis underrisikoer'}
+              >
+                {expanded ? '▾' : '▸'} {subrisks.length}
               </button>
             )}
-            <button onClick={e => { e.stopPropagation(); onClose(risk) }}
-              className="text-xs text-green-500 hover:text-green-700 transition-colors">
-              Lukk
-            </button>
-            <button onClick={e => { e.stopPropagation(); onDismiss(risk) }}
-              className="text-xs text-gray-400 hover:text-red-500 transition-colors">
-              Avvis
-            </button>
-            {risk.due_date && (
-              <span className={`text-xs font-medium ${new Date(risk.due_date) < new Date() ? 'text-red-500' : 'text-gray-400'}`}>
-                {new Date(risk.due_date) < new Date() ? '⚠ ' : ''}Frist: {new Date(risk.due_date).toLocaleDateString('nb-NO')}
-              </span>
-            )}
-            <span className="text-xs text-gray-300">
-              Opprettet: {new Date(risk.identified_at).toLocaleDateString('nb-NO')}
+            <span className={`text-xs font-semibold uppercase ${isClosed ? 'text-gray-400' : s.text}`}>
+              {isClosed ? 'Lukket' : s.label}
             </span>
-            {risk.owner_id && (() => {
-              const m = members.find(m => m.user_id === risk.owner_id)
-              const name = m?.users?.name
-              return name ? <span className="text-xs text-gray-500 font-medium">Ansvarlig: {name}</span> : null
-            })()}
-            {risk.source_input_ids?.length > 0 && inputDocs.length > 0 && (() => {
-              const titles = risk.source_input_ids.map(id => inputDocs.find(d => d.id === id)?.title).filter(Boolean)
-              return titles.length > 0 ? (
-                <p className="text-xs text-blue-400">Kilde: {titles.join(', ')}</p>
-              ) : null
-            })()}
-          </>
-        )}
+          </div>
+        </div>
+        <div className="flex items-center gap-3 mt-2 ml-4 flex-wrap">
+          {isClosed ? (
+            <span className="text-xs text-gray-400">
+              Lukket {new Date(risk.closed_at).toLocaleString('nb-NO', { dateStyle: 'short', timeStyle: 'short' })}
+            </span>
+          ) : (
+            <>
+              {risk.status === 'proposed' && (
+                <button onClick={e => { e.stopPropagation(); onConfirm(risk) }}
+                  className="text-xs text-green-600 hover:text-green-800 font-medium transition-colors">
+                  ✓ Bekreft
+                </button>
+              )}
+              <button onClick={e => { e.stopPropagation(); onClose(risk) }}
+                className="text-xs text-green-500 hover:text-green-700 transition-colors">
+                Lukk
+              </button>
+              <button onClick={e => { e.stopPropagation(); onDismiss(risk) }}
+                className="text-xs text-gray-400 hover:text-red-500 transition-colors">
+                Avvis
+              </button>
+              {risk.due_date && (
+                <span className={`text-xs font-medium ${new Date(risk.due_date) < new Date() ? 'text-red-500' : 'text-gray-400'}`}>
+                  {new Date(risk.due_date) < new Date() ? '⚠ ' : ''}Frist: {new Date(risk.due_date).toLocaleDateString('nb-NO')}
+                </span>
+              )}
+              <span className="text-xs text-gray-300">
+                Opprettet: {new Date(risk.identified_at).toLocaleDateString('nb-NO')}
+              </span>
+              {risk.owner_id && (() => {
+                const m = members.find(m => m.user_id === risk.owner_id)
+                const name = m?.users?.name
+                return name ? <span className="text-xs text-gray-500 font-medium">Ansvarlig: {name}</span> : null
+              })()}
+              {risk.source_input_ids?.length > 0 && inputDocs.length > 0 && (() => {
+                const titles = risk.source_input_ids.map(id => inputDocs.find(d => d.id === id)?.title).filter(Boolean)
+                return titles.length > 0 ? (
+                  <p className="text-xs text-blue-400">Kilde: {titles.join(', ')}</p>
+                ) : null
+              })()}
+            </>
+          )}
+        </div>
       </div>
+
+      {/* Subrisk rows */}
+      {hasSubrisks && expanded && (
+        <div className="ml-6 mt-1 space-y-1">
+          {subrisks.map(sub => {
+            const subS = SEVERITY[sub.severity] ?? SEVERITY.medium
+            return (
+              <div key={sub.id}
+                onClick={() => onEditSubrisk && onEditSubrisk(sub)}
+                className={`flex items-center gap-2 p-2 border rounded-lg cursor-pointer transition-opacity hover:opacity-90 ${subS.bg} ${subS.border}`}>
+                <span className={`w-2 h-2 rounded-full shrink-0 ${subS.dot}`} />
+                <span className={`text-xs font-medium flex-1 ${subS.text}`}>{sub.title}</span>
+                {sub.due_date && (
+                  <span className="text-xs text-gray-400">{new Date(sub.due_date).toLocaleDateString('nb-NO')}</span>
+                )}
+                <span className={`text-xs font-semibold uppercase shrink-0 ${subS.text}`}>{subS.label}</span>
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
