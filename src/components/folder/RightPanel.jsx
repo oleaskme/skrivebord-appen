@@ -134,6 +134,8 @@ function MasterViewer({ doc, folderId, onSaved, onReviewResult }) {
   const [versionOpen, setVersionOpen] = useState(false)
   const [versions, setVersions] = useState([])
   const [savingVersion, setSavingVersion] = useState(false)
+  const [previewVersion, setPreviewVersion] = useState(null)
+  const [restoring, setRestoring] = useState(false)
   const versionRef = useRef(null)
 
   useEffect(() => {
@@ -149,10 +151,24 @@ function MasterViewer({ doc, folderId, onSaved, onReviewResult }) {
   async function loadVersions() {
     const { data } = await supabase
       .from('master_document_versions')
-      .select('id, version_label, version_major, version_minor, created_at')
+      .select('id, version_label, version_major, version_minor, created_at, content')
       .eq('master_doc_id', doc.id)
       .order('created_at', { ascending: false })
     setVersions(data ?? [])
+  }
+
+  async function handleRestoreVersion(version) {
+    setRestoring(true)
+    try {
+      await supabase.from('master_documents')
+        .update({ content: version.content, updated_at: new Date().toISOString() })
+        .eq('id', doc.id)
+      setPreviewVersion(null)
+      setVersionOpen(false)
+      onSaved()
+    } finally {
+      setRestoring(false)
+    }
   }
 
   async function handleCreateVersion() {
@@ -251,7 +267,7 @@ function MasterViewer({ doc, folderId, onSaved, onReviewResult }) {
   }
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col relative">
       <div className="flex items-center justify-between px-6 py-3 border-b border-gray-100 shrink-0 gap-2 flex-wrap">
         <div className="flex items-center gap-3 flex-wrap">
           <span className="text-xs bg-primary-100 text-primary-700 px-2 py-0.5 rounded font-mono font-semibold">MASTER</span>
@@ -288,10 +304,14 @@ function MasterViewer({ doc, folderId, onSaved, onReviewResult }) {
                 ) : (
                   <div className="max-h-56 overflow-y-auto">
                     {versions.map(v => (
-                      <div key={v.id} className="px-4 py-2 hover:bg-gray-50 transition-colors">
+                      <button
+                        key={v.id}
+                        onClick={() => { setPreviewVersion(v); setVersionOpen(false) }}
+                        className="w-full text-left px-4 py-2.5 hover:bg-primary-50 transition-colors"
+                      >
                         <p className="text-sm font-medium text-gray-700">{v.version_label}</p>
                         <p className="text-xs text-gray-400">{new Date(v.created_at).toLocaleDateString('nb-NO', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
-                      </div>
+                      </button>
                     ))}
                   </div>
                 )}
@@ -352,6 +372,38 @@ function MasterViewer({ doc, folderId, onSaved, onReviewResult }) {
           </div>
         )}
       </div>
+
+      {/* Versjonsforhåndsvisning — modal */}
+      {previewVersion && (
+        <div className="absolute inset-0 z-30 bg-white flex flex-col">
+          <div className="shrink-0 flex items-center justify-between px-6 py-3 border-b border-gray-200 bg-amber-50">
+            <div>
+              <span className="text-xs font-semibold text-amber-700 bg-amber-100 px-2 py-0.5 rounded">Gammel versjon</span>
+              <h3 className="font-semibold text-gray-800 mt-1">{previewVersion.version_label}</h3>
+              <p className="text-xs text-gray-400">{new Date(previewVersion.created_at).toLocaleString('nb-NO')}</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => handleRestoreVersion(previewVersion)}
+                disabled={restoring}
+                className="bg-primary-600 text-white text-sm font-semibold rounded-lg px-4 py-2 hover:bg-primary-700 disabled:opacity-50 transition-colors"
+              >
+                {restoring ? 'Gjenoppretter...' : '↩ Gjenopprett som gjeldende'}
+              </button>
+              <button
+                onClick={() => setPreviewVersion(null)}
+                className="text-sm text-gray-500 border border-gray-200 rounded-lg px-3 py-2 hover:bg-gray-50 transition-colors"
+              >
+                Lukk
+              </button>
+            </div>
+          </div>
+          <div
+            className="flex-1 overflow-y-auto px-8 py-6 prose prose-sm max-w-none"
+            dangerouslySetInnerHTML={{ __html: splitContent(previewVersion.content ?? '').body }}
+          />
+        </div>
+      )}
     </div>
   )
 }
