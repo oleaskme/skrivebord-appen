@@ -354,14 +354,19 @@ Regler for handlinger:
 
       const fullText = response.content[0].text
 
-      // Parse og utfør handlinger — END_ACTIONS er valgfritt i regex (håndterer avkutting)
+      // Parse og utfør handlinger
       const actionsMatch = fullText.match(/ACTIONS:\s*\n([\s\S]*?)(?:END_ACTIONS|$)/)
       let actionsExecuted = []
       let displayText = fullText.replace(/ACTIONS:\s*\n[\s\S]*?(?:END_ACTIONS|$)/g, '').trim()
 
       if (actionsMatch) {
         try {
-          const actions = JSON.parse(actionsMatch[1].trim())
+          // Trekk ut JSON-array fra captured group (håndterer evt. code fences)
+          const raw = actionsMatch[1].trim()
+          const jsonStr = raw.match(/\[[\s\S]*\]/)
+          if (!jsonStr) throw new Error(`Fant ingen JSON-array i ACTIONS-blokk. Raw: ${raw.slice(0, 200)}`)
+          const actions = JSON.parse(jsonStr[0])
+          console.log('Kaia actions:', JSON.stringify(actions))
           for (const action of actions) {
             if (action.type === 'update_task_status' && action.id && action.status) {
               const { error } = await supabaseAdmin.from('tasks').update({ status: action.status }).eq('id', action.id)
@@ -436,7 +441,9 @@ Regler for handlinger:
               else console.error('create_document error:', error.message)
             }
           }
-        } catch {}
+        } catch (parseErr) {
+          console.error('Kaia actions parse error:', parseErr.message, '| fullText snippet:', fullText.slice(-500))
+        }
       }
 
       return res.json({ text: displayText, actionsExecuted })
