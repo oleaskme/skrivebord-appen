@@ -25,8 +25,45 @@ export default function KaiaHelperPanel({ folderId }) {
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
+  const [listening, setListening] = useState(false)
   const bottomRef = useRef(null)
   const textareaRef = useRef(null)
+  const recognitionRef = useRef(null)
+
+  const baseInputRef = useRef('')
+
+  function startListening() {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
+    if (!SpeechRecognition) { alert('Tale-til-tekst støttes ikke i denne nettleseren. Prøv Chrome eller Edge.'); return }
+    baseInputRef.current = input
+    const rec = new SpeechRecognition()
+    rec.lang = 'nb-NO'
+    rec.continuous = true
+    rec.interimResults = true
+    let spoken = ''
+    rec.onresult = e => {
+      let interim = ''
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const t = e.results[i][0].transcript
+        if (e.results[i].isFinal) spoken += t + ' '
+        else interim = t
+      }
+      const base = baseInputRef.current ? baseInputRef.current.trimEnd() + ' ' : ''
+      setInput(base + spoken + interim)
+    }
+    rec.onend = () => {
+      const base = baseInputRef.current ? baseInputRef.current.trimEnd() + ' ' : ''
+      setInput((base + spoken).trimEnd() + (spoken ? ' ' : ''))
+      setListening(false)
+    }
+    rec.start()
+    recognitionRef.current = rec
+    setListening(true)
+  }
+
+  function stopListening() {
+    recognitionRef.current?.stop()
+  }
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -124,6 +161,23 @@ export default function KaiaHelperPanel({ folderId }) {
               disabled={loading}
               className="flex-1 border border-gray-300 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 disabled:opacity-50 resize-none leading-relaxed"
             />
+            {/* Push-to-talk */}
+            <button
+              onMouseDown={startListening}
+              onMouseUp={stopListening}
+              onMouseLeave={stopListening}
+              onTouchStart={e => { e.preventDefault(); startListening() }}
+              onTouchEnd={stopListening}
+              disabled={loading}
+              title="Hold inne for å tale"
+              className={`shrink-0 rounded-xl px-3 py-2 text-lg transition-all select-none disabled:opacity-50 ${
+                listening
+                  ? 'bg-red-500 text-white shadow-lg scale-110 animate-pulse'
+                  : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+              }`}
+            >
+              🎙️
+            </button>
             <button
               onClick={sendMessage}
               disabled={loading || !input.trim()}
@@ -132,6 +186,12 @@ export default function KaiaHelperPanel({ folderId }) {
               Send
             </button>
           </div>
+          {listening && (
+            <p className="text-xs text-red-500 mt-1.5 flex items-center gap-1">
+              <span className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse inline-block" />
+              Kaia hører deg — slipp for å stoppe
+            </p>
+          )}
         </div>
       </div>
 
