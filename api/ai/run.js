@@ -273,6 +273,83 @@ Alle elementer skal tilhøre én gruppe. Ingen tomme grupper.`
     }
   }
 
+  // ── Kaia-chat-modus ──
+  if (mode === 'kaia_chat') {
+    const { message, history = [] } = req.body
+    if (!folderId || !message) return res.status(400).json({ error: 'folderId og message kreves' })
+
+    try {
+      // Hent kontekst
+      const [{ data: tasks }, { data: risks }, { data: masters }] = await Promise.all([
+        supabase.from('tasks').select('id, title, status, priority, due_date, owner_id').eq('folder_id', folderId).neq('status', 'completed').is('parent_id', null),
+        supabase.from('risks').select('id, title, severity, status').eq('folder_id', folderId).neq('status', 'dismissed'),
+        supabase.from('master_documents').select('id, name, content').eq('folder_id', folderId),
+      ])
+
+      const context = `Du er Kaia, en AI-assistent som hjelper brukeren med å administrere prosjektmappen.
+
+ÅPNE OPPGAVER:
+${(tasks ?? []).map(t => `- [${t.id}] "${t.title}" | prioritet: ${t.priority ?? 'ikke satt'} | frist: ${t.due_date ?? 'ingen'} | status: ${t.status}`).join('\n') || 'Ingen'}
+
+RISIKOER:
+${(risks ?? []).map(r => `- [${r.id}] "${r.title}" | alvorlighet: ${r.severity} | status: ${r.status}`).join('\n') || 'Ingen'}
+
+MASTER-DOKUMENTER:
+${(masters ?? []).map(m => `- [${m.id}] "${m.name}"`).join('\n') || 'Ingen'}
+
+Du kan utføre handlinger for brukeren. Etter ditt svar kan du inkludere en handlingsblokk på dette formatet (kun hvis du faktisk skal utføre noe):
+
+ACTIONS:
+[{"type":"update_task_status","id":"<uuid>","status":"completed|open|needs_review"},
+ {"type":"update_task_priority","id":"<uuid>","priority":"high|medium|low"},
+ {"type":"update_risk_status","id":"<uuid>","status":"confirmed|closed|dismissed"}]
+END_ACTIONS
+
+Svar alltid på norsk. Vær konkret og handlingsorientert.`
+
+      const messages = [
+        ...history.map(h => ({ role: h.role, content: h.content })),
+        { role: 'user', content: message },
+      ]
+
+      const response = await anthropic.messages.create({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 2048,
+        system: context,
+        messages,
+      })
+
+      const fullText = response.content[0].text
+
+      // Parse og utfør handlinger
+      const actionsMatch = fullText.match(/ACTIONS:\n([\s\S]*?)END_ACTIONS/)
+      let actionsExecuted = []
+      let displayText = fullText.replace(/ACTIONS:\n[\s\S]*?END_ACTIONS/g, '').trim()
+
+      if (actionsMatch) {
+        try {
+          const actions = JSON.parse(actionsMatch[1].trim())
+          for (const action of actions) {
+            if (action.type === 'update_task_status' && action.id && action.status) {
+              await supabase.from('tasks').update({ status: action.status }).eq('id', action.id)
+              actionsExecuted.push({ type: action.type, id: action.id })
+            } else if (action.type === 'update_task_priority' && action.id && action.priority) {
+              await supabase.from('tasks').update({ priority: action.priority }).eq('id', action.id)
+              actionsExecuted.push({ type: action.type, id: action.id })
+            } else if (action.type === 'update_risk_status' && action.id && action.status) {
+              await supabase.from('risks').update({ status: action.status }).eq('id', action.id)
+              actionsExecuted.push({ type: action.type, id: action.id })
+            }
+          }
+        } catch {}
+      }
+
+      return res.json({ text: displayText, actionsExecuted })
+    } catch (err) {
+      return res.status(500).json({ error: err.message })
+    }
+  }
+
   const isReview = mode === 'review' || !inputDocIds?.length
 
   if (!folderId || !masterDocId) {
