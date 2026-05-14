@@ -332,17 +332,17 @@ Regler for handlinger:
 
       const response = await anthropic.messages.create({
         model: 'claude-sonnet-4-6',
-        max_tokens: 2048,
+        max_tokens: 16000,
         system: context,
         messages,
       })
 
       const fullText = response.content[0].text
 
-      // Parse og utfør handlinger
-      const actionsMatch = fullText.match(/ACTIONS:\n([\s\S]*?)END_ACTIONS/)
+      // Parse og utfør handlinger — END_ACTIONS er valgfritt i regex (håndterer avkutting)
+      const actionsMatch = fullText.match(/ACTIONS:\s*\n([\s\S]*?)(?:END_ACTIONS|$)/)
       let actionsExecuted = []
-      let displayText = fullText.replace(/ACTIONS:\n[\s\S]*?END_ACTIONS/g, '').trim()
+      let displayText = fullText.replace(/ACTIONS:\s*\n[\s\S]*?(?:END_ACTIONS|$)/g, '').trim()
 
       if (actionsMatch) {
         try {
