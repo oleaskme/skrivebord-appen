@@ -271,6 +271,14 @@ export default function KaiaHelperPanel({ folderId }) {
 
         {/* Input */}
         <div className="shrink-0 px-4 py-3 border-t border-gray-100">
+          <div className="h-5 mb-1">
+            {listening && (
+              <p className="text-xs text-red-500 flex items-center gap-1">
+                <span className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse inline-block" />
+                Kaia hører deg — slipp for å stoppe
+              </p>
+            )}
+          </div>
           <div className="flex gap-2 items-end">
             <textarea
               rows={2}
@@ -305,12 +313,6 @@ export default function KaiaHelperPanel({ folderId }) {
               Send
             </button>
           </div>
-          {listening && (
-            <p className="text-xs text-red-500 mt-1.5 flex items-center gap-1">
-              <span className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse inline-block" />
-              Kaia hører deg — slipp for å stoppe
-            </p>
-          )}
         </div>
       </div>
 
