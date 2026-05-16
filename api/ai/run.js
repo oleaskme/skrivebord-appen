@@ -67,10 +67,21 @@ JSON-format:
   "updated_content": "<h1>Tittel</h1><h2>Seksjon</h2><p>Innhold...</p>",
   "summary": "...",
   "changelog_entry": "...",
-  "suggested_tasks": [{ "title": "...", "due_date": null }],
+  "suggested_tasks": [
+    { "title": "...", "due_date": null, "parent_id": null, "parent_title": null }
+  ],
   "suggested_risks": [{ "title": "...", "severity": "high|medium|low" }],
+  "possible_duplicate_tasks": ["<eksisterende-oppgave-id>"],
+  "possible_duplicate_risks": ["<eksisterende-risiko-id>"],
   "conflicts": ["..."]
-}`
+}
+
+Regler for oppgaver og risikoer:
+- Sjekk alltid mot eksisterende oppgaver og risikoer (leveres i brukermeldingen)
+- Ikke foreslå oppgaver/risikoer som allerede finnes (identiske eller nær-like)
+- Legg nær-like eksisterende elementer i possible_duplicate_tasks / possible_duplicate_risks (med deres ID)
+- Vurder om nye oppgaver er underoppgaver av eksisterende: sett da parent_id til den eksisterende oppgavens ID og parent_title til dens tittel
+- Hvis oppgaven er selvstendig: sett parent_id og parent_title til null`
 
 const REVIEW_SYSTEM_PROMPT = `Du er en AI-assistent som gjennomgår MASTER-dokumenter for å identifisere oppgaver og risikoer.
 
@@ -251,10 +262,10 @@ ${list}`
     try {
       let items = []
       if (itemType === 'tasks') {
-        const { data } = await supabase.from('tasks').select('id, title, status, due_date').eq('folder_id', folderId).neq('status', 'completed')
+        const { data } = await supabase.from('tasks').select('id, title, status, due_date').eq('folder_id', folderId).neq('status', 'completed').is('group_name', null)
         items = data ?? []
       } else {
-        const { data } = await supabase.from('risks').select('id, title, severity, status').eq('folder_id', folderId).neq('status', 'dismissed')
+        const { data } = await supabase.from('risks').select('id, title, severity, status').eq('folder_id', folderId).neq('status', 'dismissed').is('group_name', null)
         items = data ?? []
       }
 
@@ -589,6 +600,21 @@ Gå gjennom dokumentet og identifiser KUN nye oppgaver og risikoer som ikke alle
     const inputsRes = await supabase.from('input_documents').select('*').in('id', inputDocIds)
     const inputs = inputsRes.data ?? []
 
+    // Hent eksisterende oppgaver og risikoer for duplikat-sjekk og underoppgave-vurdering
+    const [existingTasksRes, existingRisksRes] = await Promise.all([
+      supabase.from('tasks').select('id, title, priority').eq('folder_id', folderId).neq('status', 'completed').is('parent_id', null),
+      supabase.from('risks').select('id, title, severity').eq('folder_id', folderId).neq('status', 'dismissed'),
+    ])
+    const existingTasks = existingTasksRes.data ?? []
+    const existingRisks = existingRisksRes.data ?? []
+
+    const existingTasksText = existingTasks.length > 0
+      ? existingTasks.map(t => `- id:${t.id} | "${t.title}"${t.priority ? ` [${t.priority}]` : ''}`).join('\n')
+      : '(ingen eksisterende oppgaver)'
+    const existingRisksText = existingRisks.length > 0
+      ? existingRisks.map(r => `- id:${r.id} | "${r.title}" [${r.severity}]`).join('\n')
+      : '(ingen eksisterende risikoer)'
+
     // Begrens innholdslengde for å unngå token-overflyt
     const MAX_MASTER_CHARS = 80_000
     const MAX_INPUT_CHARS  = 20_000
@@ -616,6 +642,12 @@ ${masterContent}
 Nye INPUT-dokumenter som skal bearbeides:
 
 ${inputText}
+
+Eksisterende oppgaver i mappen (sjekk for duplikater, vurder underoppgaver):
+${existingTasksText}
+
+Eksisterende risikoer i mappen (sjekk for duplikater):
+${existingRisksText}
 
 Oppdater MASTER-dokumentet basert på INPUT-dokumentene og returner JSON.${userInstruction ? `\n\nBrukerens spesielle instrukser for denne kjøringen (har høy prioritet):\n${userInstruction}` : ''}`
 

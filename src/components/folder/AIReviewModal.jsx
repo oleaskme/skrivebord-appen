@@ -25,6 +25,8 @@ export default function AIReviewModal({ result, master, inputDocs, selectedInput
   const tasks   = result.suggested_tasks  ?? []
   const risks   = result.suggested_risks  ?? []
   const conflicts = result.conflicts      ?? []
+  const duplicateTasks = result.possible_duplicate_tasks ?? []
+  const duplicateRisks = result.possible_duplicate_risks ?? []
 
   function toggleTask(i) {
     setApprovedTasks(prev => prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i])
@@ -96,6 +98,7 @@ export default function AIReviewModal({ result, master, inputDocs, selectedInput
           due_date: tasks[i].due_date ?? null,
           ai_suggested: true,
           source_input_ids: selectedInputIds ?? [],
+          parent_id: tasks[i].parent_id ?? null,
         }))
         await supabase.from('tasks').insert(taskRows)
       }
@@ -197,23 +200,31 @@ export default function AIReviewModal({ result, master, inputDocs, selectedInput
           </section>
 
           {/* Foreslåtte oppgaver */}
-          {tasks.length > 0 && (
+          {(tasks.length > 0 || duplicateTasks.length > 0) && (
             <section>
               <h3 className="font-semibold text-gray-700 mb-2 text-sm uppercase tracking-wide">
                 Foreslåtte oppgaver ({approvedTasks.length}/{tasks.length} godkjent)
               </h3>
+              {duplicateTasks.length > 0 && (
+                <div className="mb-2 px-3 py-2 bg-yellow-50 border border-yellow-200 rounded-lg text-xs text-yellow-800">
+                  ⚠ Kaia mener {duplicateTasks.length} eksisterende oppgave{duplicateTasks.length > 1 ? 'r' : ''} kan overlappe med ny informasjon — sjekk oppgavelisten.
+                </div>
+              )}
               <div className="space-y-2">
                 {tasks.map((t, i) => (
-                  <label key={i} className="flex items-center gap-3 p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                  <label key={i} className={`flex items-start gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors ${t.parent_id ? 'border-primary-100 bg-primary-50/40 ml-4' : 'border-gray-200'}`}>
                     <input
                       type="checkbox"
                       checked={approvedTasks.includes(i)}
                       onChange={() => toggleTask(i)}
-                      className="w-4 h-4 accent-primary-500"
+                      className="w-4 h-4 accent-primary-500 mt-0.5 shrink-0"
                     />
                     <div>
                       <p className="text-sm font-medium text-gray-800">{t.title}</p>
-                      {t.due_date && <p className="text-xs text-gray-400">Frist: {t.due_date}</p>}
+                      {t.parent_title && (
+                        <p className="text-xs text-primary-600 mt-0.5">↳ Underoppgave av: <span className="font-medium">{t.parent_title}</span></p>
+                      )}
+                      {t.due_date && <p className="text-xs text-gray-400 mt-0.5">Frist: {t.due_date}</p>}
                     </div>
                   </label>
                 ))}
@@ -222,11 +233,16 @@ export default function AIReviewModal({ result, master, inputDocs, selectedInput
           )}
 
           {/* Foreslåtte risikoer */}
-          {risks.length > 0 && (
+          {(risks.length > 0 || duplicateRisks.length > 0) && (
             <section>
               <h3 className="font-semibold text-gray-700 mb-2 text-sm uppercase tracking-wide">
                 Foreslåtte risikoer ({approvedRisks.length}/{risks.length} godkjent)
               </h3>
+              {duplicateRisks.length > 0 && (
+                <div className="mb-2 px-3 py-2 bg-yellow-50 border border-yellow-200 rounded-lg text-xs text-yellow-800">
+                  ⚠ Kaia mener {duplicateRisks.length} eksisterende risiko{duplicateRisks.length > 1 ? 'er' : ''} kan overlappe med ny informasjon — sjekk risikolisten.
+                </div>
+              )}
               <div className="space-y-2">
                 {risks.map((r, i) => {
                   const severityColor = r.severity === 'high' ? 'bg-red-50 text-red-700 border-red-200' : r.severity === 'medium' ? 'bg-yellow-50 text-yellow-700 border-yellow-200' : 'bg-gray-50 text-gray-600 border-gray-200'
