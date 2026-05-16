@@ -291,6 +291,7 @@ export default function FolderView() {
             onRunAI={handleRunAI}
             aiLoading={aiLoading}
             aiFerdig={aiFerdig}
+            currentAIMasterId={currentAIMasterId}
             users={users}
           />
         </div>

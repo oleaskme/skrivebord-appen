@@ -30,7 +30,7 @@ export default function LeftPanel({
   onDeleteInput, onDeleteMaster,
   selectedInputIds, onToggleInput,
   selectedMasterIds, onToggleMaster,
-  onRunAI, aiLoading, aiFerdig,
+  onRunAI, aiLoading, aiFerdig, currentAIMasterId,
   users = [],
 }) {
   const [inputFilter, setInputFilter] = useState('ubehandlet')
@@ -86,16 +86,19 @@ export default function LeftPanel({
           ) : masterDocs.map(doc => {
             const isSelected = selectedMasterIds.includes(doc.id)
             const active = !selectMode && selectedDoc?.id === doc.id && selectedDoc?.type === 'master'
+            const isProcessing = aiLoading && currentAIMasterId === doc.id
             return (
               <div
                 key={doc.id}
                 onClick={() => selectMode ? onToggleMaster(doc.id) : onSelectDoc({ type: 'master', id: doc.id })}
                 className={`group w-full text-left px-3 py-2.5 rounded-lg border transition-all cursor-pointer ${
-                  selectMode && isSelected
-                    ? 'bg-primary-50 border-primary-300 ring-1 ring-primary-200'
-                    : active
-                      ? 'bg-white border-primary-300 shadow-sm ring-1 ring-primary-200'
-                      : 'bg-white border-transparent hover:border-slate-200 hover:shadow-sm'
+                  isProcessing
+                    ? 'bg-green-50 border-green-400 ring-1 ring-green-300 shadow-sm'
+                    : selectMode && isSelected
+                      ? 'bg-primary-50 border-primary-300 ring-1 ring-primary-200'
+                      : active
+                        ? 'bg-white border-primary-300 shadow-sm ring-1 ring-primary-200'
+                        : 'bg-white border-transparent hover:border-slate-200 hover:shadow-sm'
                 }`}
               >
                 <div className="flex items-center gap-2.5">
@@ -109,7 +112,8 @@ export default function LeftPanel({
                     />
                   )}
                   <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
-                    <span className={`font-semibold text-sm truncate ${active ? 'text-primary-700' : isSelected ? 'text-primary-700' : 'text-gray-800'}`}>
+                    <span className={`font-semibold text-sm truncate ${isProcessing ? 'text-green-700' : active ? 'text-primary-700' : isSelected ? 'text-primary-700' : 'text-gray-800'}`}>
+                      {isProcessing && <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse mr-1.5 mb-0.5" />}
                       {doc.name}
                     </span>
                     <div className="flex items-center gap-1 shrink-0">
