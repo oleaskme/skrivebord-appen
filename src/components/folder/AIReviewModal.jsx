@@ -77,7 +77,15 @@ export default function AIReviewModal({ result, master, inputDocs, selectedInput
       // Merk INPUT-dokumenter som behandlet
       await supabase
         .from('input_documents')
-        .update({ status: 'processed' })
+        .update({
+          status: 'processed',
+          processed_at: new Date().toISOString(),
+          processing_summary: {
+            master_id: master.id,
+            master_name: master.name,
+            summary: result.summary ?? null,
+          },
+        })
         .in('id', selectedInputIds)
 
       // Lagre godkjente oppgaver

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { formatVersion } from '../../lib/hash'
+import InputDocDetailModal from './InputDocDetailModal'
 
 const KAIA_STATUSES = [
   '📖 Kaia leser dokumentene dine...',
@@ -20,7 +21,7 @@ const TYPE_LABELS = {
   upload:     { label: 'Opplastet',   color: 'bg-gray-100 text-gray-700' },
 }
 
-const INPUT_FILTERS = ['alle', 'ubehandlet', 'behandlet']
+const INPUT_FILTERS = ['ubehandlet', 'behandlet']
 
 export default function LeftPanel({
   masterDocs, inputDocs,
@@ -30,10 +31,12 @@ export default function LeftPanel({
   selectedInputIds, onToggleInput,
   selectedMasterIds, onToggleMaster,
   onRunAI, aiLoading, aiFerdig,
+  users = [],
 }) {
-  const [inputFilter, setInputFilter] = useState('alle')
+  const [inputFilter, setInputFilter] = useState('ubehandlet')
   const [selectMode, setSelectMode] = useState(false)
   const [statusIdx, setStatusIdx] = useState(0)
+  const [detailDoc, setDetailDoc] = useState(null)
 
   useEffect(() => {
     if (!aiLoading) { setStatusIdx(0); return }
@@ -41,11 +44,14 @@ export default function LeftPanel({
     return () => clearInterval(interval)
   }, [aiLoading])
 
-  const filteredInputs = inputDocs.filter(d => {
-    if (inputFilter === 'ubehandlet') return d.status === 'unprocessed'
-    if (inputFilter === 'behandlet')  return d.status === 'processed'
-    return true
-  })
+  const filteredInputs = inputDocs.filter(d =>
+    inputFilter === 'ubehandlet' ? d.status === 'unprocessed' : d.status === 'processed'
+  )
+
+  function userName(id) {
+    if (!id) return null
+    return users.find(u => u.id === id)?.name ?? null
+  }
 
   function toggleSelectMode() {
     if (selectMode) {
@@ -59,6 +65,7 @@ export default function LeftPanel({
   const canRunAI = selectedMasterIds.length > 0 && selectedInputIds.length > 0
 
   return (
+    <>
     <div className="h-full flex flex-col overflow-hidden bg-slate-100">
 
       {/* ── MASTER-seksjon ── */}
@@ -229,7 +236,11 @@ export default function LeftPanel({
             return (
               <div
                 key={doc.id}
-                onClick={() => selectMode ? onToggleInput(doc.id) : onSelectDoc({ type: 'input', id: doc.id })}
+                onClick={() => {
+                if (selectMode) { onToggleInput(doc.id); return }
+                if (doc.status === 'processed') { setDetailDoc(doc); return }
+                onSelectDoc({ type: 'input', id: doc.id })
+              }}
                 className={`group relative px-3 py-2.5 rounded-lg border cursor-pointer transition-all ${
                   active
                     ? 'bg-white border-primary-300 shadow-sm ring-1 ring-primary-200'
@@ -264,9 +275,19 @@ export default function LeftPanel({
                         {doc.status === 'processed' ? 'Behandlet' : 'Ubehandlet'}
                       </span>
                     </div>
-                    <p className="text-xs text-slate-400 mt-1">
-                      {new Date(doc.created_at).toLocaleDateString('nb-NO')}
-                    </p>
+                    <div className="mt-1.5 space-y-0.5">
+                      <p className="text-xs text-slate-400">
+                        {'↑ '}
+                        {new Date(doc.created_at).toLocaleDateString('nb-NO')}
+                        {userName(doc.created_by) && ` · ${userName(doc.created_by)}`}
+                      </p>
+                      {doc.processed_at && (
+                        <p className="text-xs text-green-600">
+                          {'✓ Analysert '}
+                          {new Date(doc.processed_at).toLocaleDateString('nb-NO')}
+                        </p>
+                      )}
+                    </div>
                   </div>
                   {!selectMode && (
                     <button
@@ -283,5 +304,10 @@ export default function LeftPanel({
         </div>
       </div>
     </div>
+
+    {detailDoc && (
+      <InputDocDetailModal doc={detailDoc} onClose={() => setDetailDoc(null)} />
+    )}
+    </>
   )
 }

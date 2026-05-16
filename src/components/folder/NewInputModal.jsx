@@ -154,6 +154,7 @@ export default function NewInputModal({ folderId, masterDocs = [], onClose, onCr
           source_id: sourceId ?? null,
           metadata,
           status: 'unprocessed',
+          created_by: activeUser?.id ?? null,
         })
         .select()
         .single()
