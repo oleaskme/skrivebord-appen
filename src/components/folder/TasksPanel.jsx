@@ -1150,7 +1150,7 @@ function MergeModal({ tasks, members, folderId, onClose, onDone, subtasksOf }) {
 
 // ---- TaskItem ----
 function TaskItem({ task, members = [], inputDocs = [], subtasks = [], onToggle, onDelete, onPriorityChange, onEdit, onEditSubtask, mergeMode, mergeSelected, onMergeToggle }) {
-  const [expanded, setExpanded] = useState(false)
+  const [expanded, setExpanded] = useState(true)
   const isOverdue = task.due_date && task.status !== 'completed' && new Date(task.due_date) < new Date()
   const needsReview = task.status === 'needs_review'
   const pri = PRIORITY[task.priority]
@@ -1225,10 +1225,10 @@ function TaskItem({ task, members = [], inputDocs = [], subtasks = [], onToggle,
         {hasSubtasks && !mergeMode && (
           <button
             onClick={e => { e.stopPropagation(); setExpanded(v => !v) }}
-            className="text-gray-400 hover:text-gray-600 text-xs px-1 shrink-0"
+            className="flex items-center gap-1 shrink-0 text-xs font-semibold bg-primary-50 text-primary-600 border border-primary-200 rounded-md px-2 py-0.5 hover:bg-primary-100 transition-colors"
             title={expanded ? 'Skjul underoppgaver' : 'Vis underoppgaver'}
           >
-            {expanded ? '▾' : '▸'} {subtasks.length}
+            {expanded ? '▾' : '▸'} {subtasks.length} underoppgave{subtasks.length !== 1 ? 'r' : ''}
           </button>
         )}
         {!mergeMode && (
@@ -1248,14 +1248,14 @@ function TaskItem({ task, members = [], inputDocs = [], subtasks = [], onToggle,
 
       {/* Subtask rows */}
       {hasSubtasks && expanded && !mergeMode && (
-        <div className="ml-6 mt-1 space-y-1">
+        <div className="mt-1.5 ml-4 pl-3 border-l-2 border-primary-200 space-y-1">
           {subtasks.map(sub => {
             const subPri = PRIORITY[sub.priority]
             const subOverdue = sub.due_date && sub.status !== 'completed' && new Date(sub.due_date) < new Date()
             return (
               <div key={sub.id}
                 onClick={() => onEditSubtask(sub)}
-                className={`flex items-center gap-2 px-2 py-1.5 border rounded-lg cursor-pointer transition-colors ${sub.status === 'completed' ? 'border-gray-100 opacity-60 hover:border-primary-100' : 'border-gray-100 hover:border-primary-200 hover:bg-primary-50'}`}>
+                className={`flex items-center gap-2 px-2.5 py-1.5 border rounded-lg cursor-pointer transition-colors ${sub.status === 'completed' ? 'border-gray-100 bg-gray-50 opacity-60 hover:border-primary-100' : 'border-primary-100 bg-primary-50/50 hover:border-primary-300 hover:bg-primary-50'}`}>
                 <div className="flex-1 min-w-0">
                   <span className={`text-xs ${sub.status === 'completed' ? 'line-through text-gray-400' : 'text-gray-700'}`}>{sub.title}</span>
                 </div>
