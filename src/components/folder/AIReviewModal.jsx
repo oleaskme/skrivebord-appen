@@ -263,12 +263,15 @@ export default function AIReviewModal({ result, master, inputDocs, selectedInput
 
         {/* Bunntekst med handlinger */}
         <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100 bg-gray-50 shrink-0">
-          <button
-            onClick={handleReject}
-            className="px-6 py-2.5 text-gray-500 hover:text-gray-700 font-medium transition-colors"
-          >
-            Forkast
-          </button>
+          <div className="flex flex-col items-start gap-0.5">
+            <button
+              onClick={handleReject}
+              className="px-5 py-2.5 text-sm font-semibold text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
+            >
+              Forkast alle endringer
+            </button>
+            <span className="text-xs text-gray-400 pl-1">Dokumentet forblir ubehandlet</span>
+          </div>
           <button
             onClick={handleApprove}
             disabled={saving}
