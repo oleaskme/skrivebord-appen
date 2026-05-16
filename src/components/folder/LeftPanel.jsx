@@ -237,10 +237,9 @@ export default function LeftPanel({
               <div
                 key={doc.id}
                 onClick={() => {
-                if (selectMode) { onToggleInput(doc.id); return }
-                if (doc.status === 'processed') { setDetailDoc(doc); return }
-                onSelectDoc({ type: 'input', id: doc.id })
-              }}
+                  if (selectMode) { onToggleInput(doc.id); return }
+                  onSelectDoc({ type: 'input', id: doc.id })
+                }}
                 className={`group relative px-3 py-2.5 rounded-lg border cursor-pointer transition-all ${
                   active
                     ? 'bg-white border-primary-300 shadow-sm ring-1 ring-primary-200'
@@ -290,12 +289,23 @@ export default function LeftPanel({
                     </div>
                   </div>
                   {!selectMode && (
-                    <button
-                      onClick={e => { e.stopPropagation(); onDeleteInput(doc.id) }}
-                      className="opacity-0 group-hover:opacity-100 text-slate-300 hover:text-red-400 text-xs transition-opacity shrink-0 mt-0.5 p-1"
-                    >
-                      ✕
-                    </button>
+                    <div className="flex flex-col items-center gap-1 shrink-0">
+                      {doc.status === 'processed' && (
+                        <button
+                          onClick={e => { e.stopPropagation(); setDetailDoc(doc) }}
+                          className="w-5 h-5 flex items-center justify-center rounded-full bg-primary-100 text-primary-600 hover:bg-primary-200 text-xs font-bold transition-colors"
+                          title="Vis behandlingsdetaljer"
+                        >
+                          i
+                        </button>
+                      )}
+                      <button
+                        onClick={e => { e.stopPropagation(); onDeleteInput(doc.id) }}
+                        className="opacity-0 group-hover:opacity-100 text-slate-300 hover:text-red-400 text-xs transition-opacity p-1"
+                      >
+                        ✕
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>
