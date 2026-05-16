@@ -12,6 +12,8 @@ export default function InputDocDetailModal({ doc, onClose }) {
   const [tasks, setTasks] = useState([])
   const [risks, setRisks] = useState([])
   const [loading, setLoading] = useState(true)
+  const [summary, setSummary] = useState(doc.processing_summary ?? null)
+  const [summaryLoading, setSummaryLoading] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -19,14 +21,35 @@ export default function InputDocDetailModal({ doc, onClose }) {
         supabase.from('tasks').select('id, title, status, due_date, priority').contains('source_input_ids', [doc.id]),
         supabase.from('risks').select('id, title, severity, status').contains('source_input_ids', [doc.id]),
       ])
-      setTasks(tasksRes.data ?? [])
-      setRisks(risksRes.data ?? [])
+      const loadedTasks = tasksRes.data ?? []
+      const loadedRisks = risksRes.data ?? []
+      setTasks(loadedTasks)
+      setRisks(loadedRisks)
       setLoading(false)
+
+      if (!doc.processing_summary) {
+        setSummaryLoading(true)
+        try {
+          const res = await fetch('/api/ai/run', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              mode: 'summarize_input',
+              inputDocId: doc.id,
+              tasks: loadedTasks,
+              risks: loadedRisks,
+            }),
+          })
+          const data = await res.json()
+          if (data.summary) setSummary({ summary: data.summary, retroactive: true })
+        } finally {
+          setSummaryLoading(false)
+        }
+      }
     }
     load()
   }, [doc.id])
 
-  const summary = doc.processing_summary
   const processedDate = doc.processed_at
     ? new Date(doc.processed_at).toLocaleDateString('nb-NO', { day: 'numeric', month: 'long', year: 'numeric' })
     : null
@@ -57,14 +80,18 @@ export default function InputDocDetailModal({ doc, onClose }) {
           ) : (
             <>
               {/* Oppsummering */}
-              {summary?.summary && (
-                <section>
-                  <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Endringer i master-dokumentet</h3>
+              <section>
+                <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Hva bidro dokumentet med</h3>
+                {summaryLoading ? (
+                  <p className="text-xs text-gray-400 italic animate-pulse px-4 py-3 bg-gray-50 rounded-xl">Kaia genererer oppsummering...</p>
+                ) : summary?.summary ? (
                   <p className="text-sm text-gray-700 leading-relaxed bg-gray-50 rounded-xl px-4 py-3">
                     {summary.summary}
                   </p>
-                </section>
-              )}
+                ) : (
+                  <p className="text-xs text-gray-400">Ingen oppsummering tilgjengelig.</p>
+                )}
+              </section>
 
               {/* Oppgaver */}
               <section>

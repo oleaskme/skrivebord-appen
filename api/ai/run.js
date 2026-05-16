@@ -141,6 +141,48 @@ export default async function handler(req, res) {
     return res.json({ id: data.id })
   }
 
+  // ── Retroaktiv oppsummering av behandlet input-dokument ──
+  if (mode === 'summarize_input') {
+    const { inputDocId, tasks = [], risks = [] } = req.body
+    if (!inputDocId) return res.status(400).json({ error: 'inputDocId kreves' })
+
+    const { data: inputDoc } = await supabaseAdmin.from('input_documents').select('title, content, type').eq('id', inputDocId).single()
+    if (!inputDoc) return res.status(404).json({ error: 'Dokument ikke funnet' })
+
+    const taskList = tasks.length > 0 ? tasks.map(t => `- ${t.title}`).join('\n') : '(ingen)'
+    const riskList = risks.length > 0 ? risks.map(r => `- [${r.severity}] ${r.title}`).join('\n') : '(ingen)'
+
+    const prompt = `Du er en assistent som lager korte oppsummeringer av hva et behandlet input-dokument bidro med til et prosjekt.
+
+Dokument: "${inputDoc.title}" (type: ${inputDoc.type})
+
+Innhold (utdrag):
+${(inputDoc.content ?? '').slice(0, 6000)}
+
+Oppgaver som ble lagt til basert på dette dokumentet:
+${taskList}
+
+Risikoer som ble identifisert basert på dette dokumentet:
+${riskList}
+
+Skriv en kort oppsummering på 2-3 setninger på norsk om hva dette dokumentet bidro med. Fokuser på de viktigste endringene, beslutningene eller innsiktene. Ikke nevn oppgave- eller risikolister eksplisitt — beskriv innholdet og hva det betydde for prosjektet.`
+
+    const message = await anthropic.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 300,
+      messages: [{ role: 'user', content: prompt }],
+    })
+
+    const summary = message.content[0].text.trim()
+
+    // Lagre oppsummeringen på dokumentet så den ikke regenereres neste gang
+    await supabaseAdmin.from('input_documents').update({
+      processing_summary: { summary, master_name: null, master_id: null, retroactive: true },
+    }).eq('id', inputDocId)
+
+    return res.json({ summary })
+  }
+
   // ── Prioritetsvurdering ──
   if (mode === 'assess_priority') {
     if (!folderId) return res.status(400).json({ error: 'folderId kreves' })
