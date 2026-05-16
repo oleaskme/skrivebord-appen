@@ -7,6 +7,7 @@ import RightPanel from '../components/folder/RightPanel'
 import NewMasterModal from '../components/folder/NewMasterModal'
 import NewInputModal from '../components/folder/NewInputModal'
 import AIReviewModal from '../components/folder/AIReviewModal'
+import KaiaInstructionsModal from '../components/folder/KaiaInstructionsModal'
 import ParticipantsBar from '../components/folder/ParticipantsBar'
 
 const STATUS_OPTIONS = [
@@ -41,6 +42,8 @@ export default function FolderView() {
   const [currentAIMasterId, setCurrentAIMasterId] = useState(null)
   const [aiFerdig, setAiFerdig] = useState(false)
   const [aiCreateVersion, setAiCreateVersion] = useState(true)
+  const [showKaiaModal, setShowKaiaModal] = useState(false)
+  const [pendingKaiaRun, setPendingKaiaRun] = useState(null)
   const [search, setSearch] = useState('')
 
   const loadAll = useCallback(async () => {
@@ -103,10 +106,9 @@ export default function FolderView() {
     setInputDocs(prev => [doc, ...prev])
     setSelectedDoc({ type: 'input', id: doc.id })
     if (masterIds.length === 0) return
-    const [firstId, ...rest] = masterIds
-    setPendingAIRuns(rest.map(id => ({ masterDocId: id, inputDocIds: [doc.id] })))
     setSelectedInputIds([doc.id])
-    await runAIForMaster(firstId, [doc.id])
+    setPendingKaiaRun({ inputDocIds: [doc.id], masterIds })
+    setShowKaiaModal(true)
   }
 
 
@@ -126,14 +128,14 @@ export default function FolderView() {
     )
   }
 
-  async function runAIForMaster(masterDocId, inputDocIds) {
+  async function runAIForMaster(masterDocId, inputDocIds, userInstruction = '') {
     setAiLoading(true)
     setCurrentAIMasterId(masterDocId)
     try {
       const res = await fetch('/api/ai/run', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ folderId, masterDocId, inputDocIds }),
+        body: JSON.stringify({ folderId, masterDocId, inputDocIds, userInstruction }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
@@ -146,12 +148,20 @@ export default function FolderView() {
     }
   }
 
-  async function handleRunAI(createVersion = true) {
+  function handleRunAI() {
     if (selectedMasterIds.length === 0 || selectedInputIds.length === 0) return
+    setPendingKaiaRun({ inputDocIds: selectedInputIds, masterIds: selectedMasterIds })
+    setShowKaiaModal(true)
+  }
+
+  async function handleKaiaConfirm(instructions, createVersion) {
+    setShowKaiaModal(false)
+    const { inputDocIds, masterIds } = pendingKaiaRun
+    setPendingKaiaRun(null)
     setAiCreateVersion(createVersion)
-    const [firstId, ...rest] = selectedMasterIds
-    setPendingAIRuns(rest.map(id => ({ masterDocId: id, inputDocIds: selectedInputIds })))
-    await runAIForMaster(firstId, selectedInputIds)
+    const [firstId, ...rest] = masterIds
+    setPendingAIRuns(rest.map(id => ({ masterDocId: id, inputDocIds, userInstruction: instructions })))
+    await runAIForMaster(firstId, inputDocIds, instructions)
   }
 
   async function handleAIApproved() {
@@ -160,7 +170,7 @@ export default function FolderView() {
     if (pendingAIRuns.length > 0) {
       const [next, ...remaining] = pendingAIRuns
       setPendingAIRuns(remaining)
-      await runAIForMaster(next.masterDocId, next.inputDocIds)
+      await runAIForMaster(next.masterDocId, next.inputDocIds, next.userInstruction)
     } else {
       setSelectedInputIds([])
       setSelectedMasterIds([])
@@ -314,6 +324,15 @@ export default function FolderView() {
           masterDocs={masterDocs}
           onClose={() => setShowNewInput(false)}
           onCreated={handleInputCreated}
+        />
+      )}
+
+      {showKaiaModal && pendingKaiaRun && (
+        <KaiaInstructionsModal
+          inputCount={pendingKaiaRun.inputDocIds.length}
+          masterCount={pendingKaiaRun.masterIds.length}
+          onConfirm={handleKaiaConfirm}
+          onClose={() => { setShowKaiaModal(false); setPendingKaiaRun(null) }}
         />
       )}
 

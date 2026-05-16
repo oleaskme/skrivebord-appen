@@ -112,7 +112,7 @@ async function withRetry(fn, maxAttempts = 3) {
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Metode ikke støttet' })
 
-  const { folderId, masterDocId, inputDocIds, mode, question, history } = req.body
+  const { folderId, masterDocId, inputDocIds, mode, question, history, userInstruction } = req.body
 
   // ── Versjonshistorikk ──
   if (mode === 'list_versions') {
@@ -575,7 +575,7 @@ Nye INPUT-dokumenter som skal bearbeides:
 
 ${inputText}
 
-Oppdater MASTER-dokumentet basert på INPUT-dokumentene og returner JSON.`
+Oppdater MASTER-dokumentet basert på INPUT-dokumentene og returner JSON.${userInstruction ? `\n\nBrukerens spesielle instrukser for denne kjøringen (har høy prioritet):\n${userInstruction}` : ''}`
 
     // Kall Claude API med streaming (påkrevd av SDK for store max_tokens)
     const stream = anthropic.messages.stream(
