@@ -36,15 +36,20 @@ export default function AIReviewModal({ result, master, inputDocs, selectedInput
   async function handleApprove() {
     setSaving(true)
     try {
-      // Lagre snapshot av gjeldende versjon før oppdatering
+      // Lagre snapshot av gjeldende versjon før oppdatering (via API med service role, pga. RLS)
       if (createVersion) {
         const label = `v${formatVersion(master.version_major, master.version_minor)} — ${new Date().toLocaleDateString('nb-NO')}`
-        await supabase.from('master_document_versions').insert({
-          master_doc_id: master.id,
-          content: master.content ?? '',
-          version_label: label,
-          version_major: master.version_major,
-          version_minor: master.version_minor,
+        await fetch('/api/ai/run', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            mode: 'create_version',
+            masterDocId: master.id,
+            content: master.content ?? '',
+            versionLabel: label,
+            versionMajor: master.version_major,
+            versionMinor: master.version_minor,
+          }),
         })
       }
 
