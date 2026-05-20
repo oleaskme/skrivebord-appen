@@ -27,3 +27,7 @@
   content: attr(data-placeholder);
   @apply text-gray-300 float-left h-0 pointer-events-none;
 }
+.tiptap-editor .tiptap table { @apply w-full border-collapse my-3 text-sm; }
+.tiptap-editor .tiptap th { @apply bg-gray-100 font-semibold text-gray-700 border border-gray-300 px-3 py-2 text-left; }
+.tiptap-editor .tiptap td { @apply border border-gray-200 px-3 py-2 text-gray-700; }
+.tiptap-editor .tiptap tr:nth-child(even) td { @apply bg-gray-50; }

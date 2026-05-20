@@ -36,7 +36,7 @@ const border = (color = S.tableBorder) => ({
   style: BorderStyle.SINGLE, size: 1, color,
 })
 
-function styledRuns(html, size, color) {
+function styledRuns(html, size, color, forceBold = false) {
   const runs = []
   let bold = false, italic = false, underline = false
   const parts = html.split(/(<\/?(?:strong|b|em|i|u)[^>]*>)/gi)
@@ -50,7 +50,7 @@ function styledRuns(html, size, color) {
     if (/^<\/u>/.test(tag))                 { underline = false; continue }
     if (part.startsWith('<'))               continue
     const text = part.replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&nbsp;/g,' ')
-    if (text) runs.push(new TextRun({ text, font: 'Arial', size, color, bold, italics: italic, underline: underline ? {} : undefined }))
+    if (text) runs.push(new TextRun({ text, font: 'Arial', size, color, bold: forceBold || bold, italics: italic, underline: underline ? {} : undefined }))
   }
   return runs.length ? runs : [new TextRun({ text: '', font: 'Arial', size, color })]
 }
@@ -85,21 +85,21 @@ function htmlToDocxParagraphs(html) {
       out.push(new Paragraph({
         heading: HeadingLevel.HEADING_1,
         spacing: { before: S.h1Before, after: S.h1After },
-        children: styledRuns(inner, S.h1Size, S.h1Color).map(r => new TextRun({ ...r, bold: true })),
+        children: styledRuns(inner, S.h1Size, S.h1Color, true),
       })); continue
     }
     if (tag === 'h2') {
       out.push(new Paragraph({
         heading: HeadingLevel.HEADING_2,
         spacing: { before: S.h2Before, after: S.h2After },
-        children: styledRuns(inner, S.h2Size, S.h2Color).map(r => new TextRun({ ...r, bold: true })),
+        children: styledRuns(inner, S.h2Size, S.h2Color, true),
       })); continue
     }
     if (tag === 'h3') {
       out.push(new Paragraph({
         heading: HeadingLevel.HEADING_3,
         spacing: { before: S.h3Before, after: S.h3After },
-        children: styledRuns(inner, S.h3Size, S.h3Color).map(r => new TextRun({ ...r, bold: true })),
+        children: styledRuns(inner, S.h3Size, S.h3Color, true),
       })); continue
     }
     if (tag === 'li') {
@@ -269,6 +269,23 @@ export default async function handler(req, res) {
   const wordDoc = new Document({
     styles: {
       default: { document: { run: { font: 'Arial', size: S.bodySize, color: S.bodyColor } } },
+      paragraphStyles: [
+        {
+          id: 'Heading1', name: 'Heading 1', basedOn: 'Normal', next: 'Normal', quickFormat: true,
+          run: { font: 'Arial', size: S.h1Size, color: S.h1Color, bold: true },
+          paragraph: { spacing: { before: S.h1Before, after: S.h1After } },
+        },
+        {
+          id: 'Heading2', name: 'Heading 2', basedOn: 'Normal', next: 'Normal', quickFormat: true,
+          run: { font: 'Arial', size: S.h2Size, color: S.h2Color, bold: true },
+          paragraph: { spacing: { before: S.h2Before, after: S.h2After } },
+        },
+        {
+          id: 'Heading3', name: 'Heading 3', basedOn: 'Normal', next: 'Normal', quickFormat: true,
+          run: { font: 'Arial', size: S.h3Size, color: S.h3Color, bold: true },
+          paragraph: { spacing: { before: S.h3Before, after: S.h3After } },
+        },
+      ],
     },
     sections: [{
       properties: {

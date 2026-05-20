@@ -1,5 +1,6 @@
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
+import { Table, TableRow, TableHeader, TableCell } from '@tiptap/extension-table'
 import { useEffect } from 'react'
 
 function ToolbarButton({ onClick, active, title, children }) {
@@ -21,6 +22,10 @@ export default function RichTextEditor({ content, onChange, editable = true, pla
       StarterKit.configure({
         heading: { levels: [1, 2, 3] },
       }),
+      Table.configure({ resizable: false }),
+      TableRow,
+      TableHeader,
+      TableCell,
     ],
     content,
     editable,
