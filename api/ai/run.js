@@ -437,6 +437,7 @@ Regler for handlinger:
       // Parse og utfør handlinger
       const actionsMatch = fullText.match(/ACTIONS:\s*\n([\s\S]*?)(?:END_ACTIONS|$)/)
       let actionsExecuted = []
+      let actionsErrors = []
       let displayText = fullText.replace(/ACTIONS:\s*\n[\s\S]*?(?:END_ACTIONS|$)/g, '').trim()
 
       if (actionsMatch) {
@@ -451,11 +452,11 @@ Regler for handlinger:
             if (action.type === 'update_task_status' && action.id && action.status) {
               const { error } = await supabaseAdmin.from('tasks').update({ status: action.status }).eq('id', action.id)
               if (!error) actionsExecuted.push({ type: action.type, id: action.id })
-              else console.error('update_task_status error:', error.message)
+              else { console.error('update_task_status error:', error.message); actionsErrors.push(`update_task_status: ${error.message}`) }
             } else if (action.type === 'update_task_priority' && action.id && action.priority) {
               const { error } = await supabaseAdmin.from('tasks').update({ priority: action.priority }).eq('id', action.id)
               if (!error) actionsExecuted.push({ type: action.type, id: action.id })
-              else console.error('update_task_priority error:', error.message)
+              else { console.error('update_task_priority error:', error.message); actionsErrors.push(`update_task_priority: ${error.message}`) }
             } else if (action.type === 'update_task_details' && action.id) {
               const fields = {}
               if (action.title) fields.title = action.title
@@ -465,28 +466,29 @@ Regler for handlinger:
               if (Object.keys(fields).length) {
                 const { error } = await supabaseAdmin.from('tasks').update(fields).eq('id', action.id)
                 if (!error) actionsExecuted.push({ type: action.type, id: action.id })
-                else console.error('update_task_details error:', error.message)
+                else { console.error('update_task_details error:', error.message); actionsErrors.push(`update_task_details: ${error.message}`) }
               }
             } else if (action.type === 'create_task' && action.title) {
-              const { data: newTask, error } = await supabaseAdmin.from('tasks').insert({
+              const insertData = {
                 folder_id: folderId,
                 title: action.title,
                 priority: action.priority ?? null,
                 due_date: action.due_date ?? null,
                 owner_id: action.owner_id ?? null,
-                description: action.description ?? null,
                 status: 'open',
-              }).select('id').single()
+              }
+              if (action.description != null) insertData.description = action.description
+              const { data: newTask, error } = await supabaseAdmin.from('tasks').insert(insertData).select('id').single()
               if (!error) actionsExecuted.push({ type: action.type, id: newTask?.id })
-              else console.error('create_task error:', error.message)
+              else { console.error('create_task error:', error.message); actionsErrors.push(`create_task: ${error.message}`) }
             } else if (action.type === 'delete_task' && action.id) {
               const { error } = await supabaseAdmin.from('tasks').delete().eq('id', action.id)
               if (!error) actionsExecuted.push({ type: action.type, id: action.id })
-              else console.error('delete_task error:', error.message)
+              else { console.error('delete_task error:', error.message); actionsErrors.push(`delete_task: ${error.message}`) }
             } else if (action.type === 'update_risk_status' && action.id && action.status) {
               const { error } = await supabaseAdmin.from('risks').update({ status: action.status }).eq('id', action.id)
               if (!error) actionsExecuted.push({ type: action.type, id: action.id })
-              else console.error('update_risk_status error:', error.message)
+              else { console.error('update_risk_status error:', error.message); actionsErrors.push(`update_risk_status: ${error.message}`) }
             } else if (action.type === 'update_risk_details' && action.id) {
               const fields = {}
               if (action.title) fields.title = action.title
@@ -495,7 +497,7 @@ Regler for handlinger:
               if (Object.keys(fields).length) {
                 const { error } = await supabaseAdmin.from('risks').update(fields).eq('id', action.id)
                 if (!error) actionsExecuted.push({ type: action.type, id: action.id })
-                else console.error('update_risk_details error:', error.message)
+                else { console.error('update_risk_details error:', error.message); actionsErrors.push(`update_risk_details: ${error.message}`) }
               }
             } else if (action.type === 'create_risk' && action.title) {
               const { data: newRisk, error } = await supabaseAdmin.from('risks').insert({
@@ -506,11 +508,11 @@ Regler for handlinger:
                 status: 'proposed',
               }).select('id').single()
               if (!error) actionsExecuted.push({ type: action.type, id: newRisk?.id })
-              else console.error('create_risk error:', error.message)
+              else { console.error('create_risk error:', error.message); actionsErrors.push(`create_risk: ${error.message}`) }
             } else if (action.type === 'edit_document' && action.id && action.content) {
               const { error } = await supabaseAdmin.from('master_documents').update({ content: action.content }).eq('id', action.id)
               if (!error) actionsExecuted.push({ type: action.type, id: action.id })
-              else console.error('edit_document error:', error.message)
+              else { console.error('edit_document error:', error.message); actionsErrors.push(`edit_document: ${error.message}`) }
             } else if (action.type === 'create_document' && action.name) {
               const { data: newDoc, error } = await supabaseAdmin.from('master_documents').insert({
                 folder_id: folderId,
@@ -518,15 +520,18 @@ Regler for handlinger:
                 content: action.content ?? '',
               }).select('id').single()
               if (!error) actionsExecuted.push({ type: action.type, id: newDoc?.id })
-              else console.error('create_document error:', error.message)
+              else { console.error('create_document error:', error.message); actionsErrors.push(`create_document: ${error.message}`) }
+            } else if (!['update_task_status','update_task_priority','update_task_details','create_task','delete_task','update_risk_status','update_risk_details','create_risk','edit_document','create_document'].includes(action.type)) {
+              actionsErrors.push(`Ukjent handlingstype: ${action.type}`)
             }
           }
         } catch (parseErr) {
           console.error('Kaia actions parse error:', parseErr.message, '| fullText snippet:', fullText.slice(-500))
+          actionsErrors.push(`Parse-feil: ${parseErr.message}`)
         }
       }
 
-      return res.json({ text: displayText, actionsExecuted })
+      return res.json({ text: displayText, actionsExecuted, actionsErrors })
     } catch (err) {
       return res.status(500).json({ error: err.message })
     }

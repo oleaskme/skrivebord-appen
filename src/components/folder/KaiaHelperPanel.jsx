@@ -26,11 +26,18 @@ function ChatMessage({ msg }) {
         <div className={`rounded-2xl px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap ${isUser ? 'bg-primary-500 text-white rounded-br-sm' : 'bg-gray-100 text-gray-800 rounded-bl-sm'}`}>
           {msg.content}
         </div>
-        {!isUser && msg.actionsExecuted?.length > 0 && (
+        {!isUser && (msg.actionsExecuted?.length > 0 || msg.actionsErrors?.length > 0) && (
           <div className="flex flex-wrap gap-1 px-1">
-            <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium bg-green-100 text-green-700">
-              ✓ Utførte {msg.actionsExecuted.length} handling{msg.actionsExecuted.length !== 1 ? 'er' : ''}
-            </span>
+            {msg.actionsExecuted?.length > 0 && (
+              <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium bg-green-100 text-green-700">
+                ✓ Utførte {msg.actionsExecuted.length} handling{msg.actionsExecuted.length !== 1 ? 'er' : ''}
+              </span>
+            )}
+            {msg.actionsErrors?.map((err, i) => (
+              <span key={i} className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium bg-red-100 text-red-700" title={err}>
+                ✗ Feil: {err.length > 60 ? err.slice(0, 60) + '…' : err}
+              </span>
+            ))}
           </div>
         )}
       </div>
@@ -164,6 +171,7 @@ export default function KaiaHelperPanel({ folderId }) {
         role: 'assistant',
         content: data.text,
         actionsExecuted: data.actionsExecuted ?? [],
+        actionsErrors: data.actionsErrors ?? [],
       }
       setMessages(prev => [...prev, assistantMsg])
     } catch (err) {
@@ -172,6 +180,7 @@ export default function KaiaHelperPanel({ folderId }) {
         role: 'assistant',
         content: `Feil: ${err.message}`,
         actionsExecuted: [],
+        actionsErrors: [],
       }])
     } finally {
       setLoading(false)
