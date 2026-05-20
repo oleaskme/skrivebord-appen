@@ -1151,7 +1151,8 @@ const STATUS = {
 
 function TaskItem({ task, members = [], inputDocs = [], subtasks = [], onToggle, onDelete, onPriorityChange, onStatusChange, onEdit, onEditSubtask, mergeMode, mergeSelected, onMergeToggle }) {
   const [expanded, setExpanded] = useState(true)
-  const isOverdue = task.due_date && task.status !== 'completed' && new Date(task.due_date) < new Date()
+  const isArchived = task.status === 'archived'
+  const isOverdue = task.due_date && !isArchived && new Date(task.due_date) < new Date()
   const needsReview = task.status === 'needs_review'
   const pri = PRIORITY[task.priority]
   const isSelected = mergeSelected?.includes(task.id)
@@ -1163,7 +1164,7 @@ function TaskItem({ task, members = [], inputDocs = [], subtasks = [], onToggle,
       <div onClick={mergeMode ? () => onMergeToggle(task.id) : onEdit}
         className={`flex items-center gap-3 p-3 border rounded-lg transition-colors cursor-pointer ${
           mergeMode && isSelected ? 'border-primary-400 bg-primary-50' :
-          task.status === 'completed' ? 'border-gray-100 opacity-60 hover:border-primary-200 hover:bg-primary-50' :
+          isArchived ? 'border-gray-100 opacity-60 hover:border-primary-200 hover:bg-primary-50' :
           needsReview ? 'border-orange-200 bg-orange-50 hover:border-orange-300' :
           'border-gray-100 hover:border-primary-200 hover:bg-primary-50'
         }`}>
@@ -1178,7 +1179,7 @@ function TaskItem({ task, members = [], inputDocs = [], subtasks = [], onToggle,
         )}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <p className={`text-sm ${task.status === 'completed' ? 'line-through text-gray-400' : 'text-gray-800'}`}>
+            <p className={`text-sm ${isArchived ? 'line-through text-gray-400' : 'text-gray-800'}`}>
               {task.title}
             </p>
             {needsReview && (
@@ -1272,9 +1273,9 @@ function TaskItem({ task, members = [], inputDocs = [], subtasks = [], onToggle,
             return (
               <div key={sub.id}
                 onClick={() => onEditSubtask(sub)}
-                className={`flex items-center gap-2 px-2.5 py-1.5 border rounded-lg cursor-pointer transition-colors ${sub.status === 'completed' ? 'border-gray-100 bg-gray-50 opacity-60 hover:border-primary-100' : 'border-primary-100 bg-primary-50/50 hover:border-primary-300 hover:bg-primary-50'}`}>
+                className={`flex items-center gap-2 px-2.5 py-1.5 border rounded-lg cursor-pointer transition-colors ${sub.status === 'archived' ? 'border-gray-100 bg-gray-50 opacity-60 hover:border-primary-100' : 'border-primary-100 bg-primary-50/50 hover:border-primary-300 hover:bg-primary-50'}`}>
                 <div className="flex-1 min-w-0">
-                  <span className={`text-xs ${sub.status === 'completed' ? 'line-through text-gray-400' : 'text-gray-700'}`}>{sub.title}</span>
+                  <span className={`text-xs ${sub.status === 'archived' ? 'line-through text-gray-400' : 'text-gray-700'}`}>{sub.title}</span>
                 </div>
                 {sub.due_date && (
                   <span className={`text-xs shrink-0 ${subOverdue ? 'text-red-400' : 'text-gray-400'}`}>
