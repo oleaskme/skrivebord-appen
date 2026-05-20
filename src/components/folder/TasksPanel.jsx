@@ -280,7 +280,8 @@ export default function TasksPanel({ folderId, folderName, members = [], inputDo
     setShowMergeModal(false)
   }
 
-  const openTasks  = topLevel.filter(t => t.status !== 'archived')
+  const openTasks     = topLevel.filter(t => t.status !== 'archived')
+  const archivedTasks = topLevel.filter(t => t.status === 'archived')
 
   function sortByPriorityThenDue(items) {
     return [...items].sort((a, b) => {
@@ -574,6 +575,14 @@ export default function TasksPanel({ folderId, folderName, members = [], inputDo
           <p className="text-gray-400 text-sm text-center py-8">Ingen oppgaver ennå</p>
         )}
         {sortBy === 'priority' ? renderByPriority() : sortBy === 'group' ? renderByGroup() : renderByOwner()}
+        {archivedTasks.length > 0 && (
+          <div>
+            <p className="text-base font-bold text-gray-400 uppercase tracking-wide mb-2">Ferdigstilte oppgaver ({archivedTasks.length})</p>
+            <div className="space-y-2">
+              {archivedTasks.map(t => <TaskItem key={t.id} {...taskItemProps(t)} />)}
+            </div>
+          </div>
+        )}
       </div>
 
       {editingTask && (
