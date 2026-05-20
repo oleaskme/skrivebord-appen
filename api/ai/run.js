@@ -401,7 +401,7 @@ Du kan utføre handlinger for brukeren. Etter ditt svar kan du inkludere en hand
 
 ACTIONS:
 [
-  {"type":"update_task_status","id":"<uuid>","status":"completed|open|in_progress|needs_review"},
+  {"type":"update_task_status","id":"<uuid>","status":"open|in_progress|completed|archived|needs_review"},
   {"type":"update_task_priority","id":"<uuid>","priority":"high|medium|low"},
   {"type":"update_task_details","id":"<uuid>","title":"...","due_date":"YYYY-MM-DD or null","owner_id":"<uuid> or null","description":"..."},
   {"type":"create_task","title":"...","priority":"high|medium|low","due_date":"YYYY-MM-DD or null","owner_id":"<uuid> or null","description":"..."},

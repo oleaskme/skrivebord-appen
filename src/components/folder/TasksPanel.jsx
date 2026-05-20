@@ -280,8 +280,7 @@ export default function TasksPanel({ folderId, folderName, members = [], inputDo
     setShowMergeModal(false)
   }
 
-  const openTasks  = topLevel.filter(t => t.status === 'open' || t.status === 'needs_review' || t.status === 'in_progress')
-  const completedTasks = topLevel.filter(t => t.status === 'completed')
+  const openTasks  = topLevel.filter(t => t.status !== 'archived')
 
   function sortByPriorityThenDue(items) {
     return [...items].sort((a, b) => {
@@ -335,14 +334,6 @@ export default function TasksPanel({ folderId, folderName, members = [], inputDo
             </div>
           )
         })}
-        {completedTasks.length > 0 && (
-          <div>
-            <p className="text-base font-bold text-gray-400 uppercase tracking-wide mb-2">Fullført ({completedTasks.length})</p>
-            <div className="space-y-2">
-              {completedTasks.map(t => <TaskItem key={t.id} {...taskItemProps(t)} />)}
-            </div>
-          </div>
-        )}
       </>
     )
   }
@@ -397,14 +388,6 @@ export default function TasksPanel({ folderId, folderName, members = [], inputDo
             </div>
           )
         })}
-        {completedTasks.length > 0 && (
-          <div>
-            <p className="text-base font-bold text-gray-400 uppercase tracking-wide mb-2">Fullført ({completedTasks.length})</p>
-            <div className="space-y-2">
-              {completedTasks.map(t => <TaskItem key={t.id} {...taskItemProps(t)} />)}
-            </div>
-          </div>
-        )}
       </>
     )
   }
@@ -434,14 +417,6 @@ export default function TasksPanel({ folderId, folderName, members = [], inputDo
             </div>
           </div>
         ))}
-        {completedTasks.length > 0 && (
-          <div>
-            <p className="text-base font-bold text-gray-400 uppercase tracking-wide mb-2">Fullført ({completedTasks.length})</p>
-            <div className="space-y-2">
-              {completedTasks.map(t => <TaskItem key={t.id} {...taskItemProps(t)} />)}
-            </div>
-          </div>
-        )}
       </>
     )
   }
@@ -1158,10 +1133,11 @@ function MergeModal({ tasks, members, folderId, onClose, onDone, subtasksOf }) {
 
 // ---- TaskItem ----
 const STATUS = {
-  open:        { label: 'Ny',       bg: 'bg-white',     text: 'text-gray-600',   border: 'border-gray-200' },
-  in_progress: { label: 'Pågående', bg: 'bg-white',     text: 'text-blue-600',   border: 'border-blue-200' },
-  completed:   { label: 'Fullført', bg: 'bg-green-100', text: 'text-green-700',  border: 'border-green-300' },
-  needs_review:{ label: 'Vurderes', bg: 'bg-white',     text: 'text-orange-600', border: 'border-orange-200' },
+  open:        { label: 'Ny',          bg: 'bg-white',     text: 'text-gray-600',   border: 'border-gray-200' },
+  in_progress: { label: 'Pågående',    bg: 'bg-white',     text: 'text-blue-600',   border: 'border-blue-200' },
+  completed:   { label: 'Fullført',    bg: 'bg-green-100', text: 'text-green-700',  border: 'border-green-300' },
+  needs_review:{ label: 'Vurderes',    bg: 'bg-white',     text: 'text-orange-600', border: 'border-orange-200' },
+  archived:    { label: 'Ferdigstilt', bg: 'bg-white',     text: 'text-gray-400',   border: 'border-gray-200' },
 }
 
 function TaskItem({ task, members = [], inputDocs = [], subtasks = [], onToggle, onDelete, onPriorityChange, onStatusChange, onEdit, onEditSubtask, mergeMode, mergeSelected, onMergeToggle }) {
@@ -1247,7 +1223,7 @@ function TaskItem({ task, members = [], inputDocs = [], subtasks = [], onToggle,
           </button>
         )}
         {!mergeMode && (() => {
-          const statusVal = ['open', 'in_progress', 'completed'].includes(task.status) ? task.status : 'open'
+          const statusVal = ['open', 'in_progress', 'completed', 'needs_review'].includes(task.status) ? task.status : 'open'
           const st = STATUS[statusVal]
           return (
             <select
@@ -1259,6 +1235,7 @@ function TaskItem({ task, members = [], inputDocs = [], subtasks = [], onToggle,
               <option value="open">Ny</option>
               <option value="in_progress">Pågående</option>
               <option value="completed">Fullført</option>
+              <option value="archived">Ferdigstilt</option>
             </select>
           )
         })()}
