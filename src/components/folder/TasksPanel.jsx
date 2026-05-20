@@ -128,6 +128,13 @@ export default function TasksPanel({ folderId, folderName, members = [], inputDo
     setTasks(prev => prev.map(t => t.id === task.id ? { ...t, priority } : t))
   }
 
+  async function handleStatusChange(task, status) {
+    const completedAt = status === 'completed' ? new Date().toISOString() : null
+    const completedBy = status === 'completed' ? activeUser.id : null
+    await supabase.from('tasks').update({ status, completed_at: completedAt, completed_by: completedBy }).eq('id', task.id)
+    setTasks(prev => prev.map(t => t.id === task.id ? { ...t, status, completed_at: completedAt, completed_by: completedBy } : t))
+  }
+
   async function handleDelete(task) {
     await supabase.from('tasks').delete().eq('id', task.id)
     if (task.google_tasks_id && task.google_tasklist_id) {
@@ -273,7 +280,7 @@ export default function TasksPanel({ folderId, folderName, members = [], inputDo
     setShowMergeModal(false)
   }
 
-  const openTasks  = topLevel.filter(t => t.status === 'open' || t.status === 'needs_review')
+  const openTasks  = topLevel.filter(t => t.status === 'open' || t.status === 'needs_review' || t.status === 'in_progress')
   const completedTasks = topLevel.filter(t => t.status === 'completed')
 
   function sortByPriorityThenDue(items) {
@@ -296,6 +303,7 @@ export default function TasksPanel({ folderId, folderName, members = [], inputDo
       onToggle: handleToggle,
       onDelete: handleDelete,
       onPriorityChange: handlePriorityChange,
+      onStatusChange: handleStatusChange,
       onEdit: () => setEditingTask(t),
       onEditSubtask: (sub) => setEditingSubtask(sub),
       mergeMode,
@@ -1149,7 +1157,14 @@ function MergeModal({ tasks, members, folderId, onClose, onDone, subtasksOf }) {
 }
 
 // ---- TaskItem ----
-function TaskItem({ task, members = [], inputDocs = [], subtasks = [], onToggle, onDelete, onPriorityChange, onEdit, onEditSubtask, mergeMode, mergeSelected, onMergeToggle }) {
+const STATUS = {
+  open:        { label: 'Ny',       bg: 'bg-white',     text: 'text-gray-600',   border: 'border-gray-200' },
+  in_progress: { label: 'Pågående', bg: 'bg-white',     text: 'text-blue-600',   border: 'border-blue-200' },
+  completed:   { label: 'Fullført', bg: 'bg-green-100', text: 'text-green-700',  border: 'border-green-300' },
+  needs_review:{ label: 'Vurderes', bg: 'bg-white',     text: 'text-orange-600', border: 'border-orange-200' },
+}
+
+function TaskItem({ task, members = [], inputDocs = [], subtasks = [], onToggle, onDelete, onPriorityChange, onStatusChange, onEdit, onEditSubtask, mergeMode, mergeSelected, onMergeToggle }) {
   const [expanded, setExpanded] = useState(true)
   const isOverdue = task.due_date && task.status !== 'completed' && new Date(task.due_date) < new Date()
   const needsReview = task.status === 'needs_review'
@@ -1231,6 +1246,22 @@ function TaskItem({ task, members = [], inputDocs = [], subtasks = [], onToggle,
             {expanded ? '▾' : '▸'} {subtasks.length} underoppgave{subtasks.length !== 1 ? 'r' : ''}
           </button>
         )}
+        {!mergeMode && (() => {
+          const statusVal = ['open', 'in_progress', 'completed'].includes(task.status) ? task.status : 'open'
+          const st = STATUS[statusVal]
+          return (
+            <select
+              value={statusVal}
+              onChange={e => { e.stopPropagation(); onStatusChange(task, e.target.value) }}
+              onClick={e => e.stopPropagation()}
+              className={`text-xs rounded-md px-1.5 py-0.5 border font-medium cursor-pointer focus:outline-none ${st.bg} ${st.text} ${st.border}`}
+            >
+              <option value="open">Ny</option>
+              <option value="in_progress">Pågående</option>
+              <option value="completed">Fullført</option>
+            </select>
+          )
+        })()}
         {!mergeMode && (
           <select
             value={task.priority ?? ''}
