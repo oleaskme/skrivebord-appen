@@ -382,7 +382,10 @@ Alle elementer skal tilhøre én gruppe. Ingen tomme grupper.`
         supabase.from('folder_members').select('user_id, users(name)').eq('folder_id', folderId),
       ])
 
-      const MAX_DOC_CHARS = 3000
+      const MAX_DOC_CHARS = 60000
+      const truncatedDocIds = new Set(
+        (masters ?? []).filter(m => (m.content ?? '').length > MAX_DOC_CHARS).map(m => m.id)
+      )
       const context = `Du er Kaia, en AI-assistent som hjelper brukeren med å administrere prosjektmappen.
 
 ÅPNE OPPGAVER:
@@ -392,7 +395,7 @@ RISIKOER:
 ${(risks ?? []).map(r => `- [${r.id}] "${r.title}" | alvorlighet: ${r.severity} | status: ${r.status}${r.description ? ` | beskrivelse: ${r.description.slice(0, 100)}` : ''}`).join('\n') || 'Ingen'}
 
 MASTER-DOKUMENTER:
-${(masters ?? []).map(m => `- [${m.id}] "${m.name}"\n${(m.content ?? '').slice(0, MAX_DOC_CHARS)}${(m.content ?? '').length > MAX_DOC_CHARS ? '\n[...forkortet...]' : ''}`).join('\n\n') || 'Ingen'}
+${(masters ?? []).map(m => `- [${m.id}] "${m.name}"${truncatedDocIds.has(m.id) ? ' [ADVARSEL: dokumentet er for langt til å vises fullstendig – edit_document er blokkert for dette dokumentet]' : ''}\n${(m.content ?? '').slice(0, MAX_DOC_CHARS)}${truncatedDocIds.has(m.id) ? '\n[...forkortet...]' : ''}`).join('\n\n') || 'Ingen'}
 
 MAPPEMEDLEMMER (mulige ansvarlige, bruk user_id som owner_id):
 ${(members ?? []).map(m => `- [${m.user_id}] ${m.users?.name ?? 'Ukjent'}`).join('\n') || 'Ingen'}
@@ -416,7 +419,7 @@ END_ACTIONS
 
 Regler for handlinger:
 - Bruk kun handlinger som er eksplisitt bedt om av brukeren.
-- For edit_document: returner komplett HTML-innhold for dokumentet.
+- For edit_document: returner komplett HTML-innhold for dokumentet. Bruk ALDRI edit_document på dokumenter merket med [ADVARSEL: ...blokkert] – be brukeren forkorte dokumentet først.
 - Felter som ikke skal endres i update_*-handlinger kan utelates.
 - Svar alltid på norsk. Vær konkret og handlingsorientert.`
 
@@ -510,9 +513,13 @@ Regler for handlinger:
               if (!error) actionsExecuted.push({ type: action.type, id: newRisk?.id })
               else { console.error('create_risk error:', error.message); actionsErrors.push(`create_risk: ${error.message}`) }
             } else if (action.type === 'edit_document' && action.id && action.content) {
-              const { error } = await supabaseAdmin.from('master_documents').update({ content: action.content }).eq('id', action.id)
-              if (!error) actionsExecuted.push({ type: action.type, id: action.id })
-              else { console.error('edit_document error:', error.message); actionsErrors.push(`edit_document: ${error.message}`) }
+              if (truncatedDocIds.has(action.id)) {
+                actionsErrors.push(`edit_document blokkert: dokumentet var for langt og ble avkortet i konteksten – lagring ville slettet innhold etter avkortningspunktet`)
+              } else {
+                const { error } = await supabaseAdmin.from('master_documents').update({ content: action.content }).eq('id', action.id)
+                if (!error) actionsExecuted.push({ type: action.type, id: action.id })
+                else { console.error('edit_document error:', error.message); actionsErrors.push(`edit_document: ${error.message}`) }
+              }
             } else if (action.type === 'create_document' && action.name) {
               const { data: newDoc, error } = await supabaseAdmin.from('master_documents').insert({
                 folder_id: folderId,
