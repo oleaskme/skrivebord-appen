@@ -9,7 +9,7 @@ import kaiaImg from '../assets/kaia.png'
 import kaiaVideo from '../assets/Kaia AI med lyd.mov'
 
 export default function Desktop() {
-  const { activeUser, users, isAdmin, clearUser, deleteUser } = useUser()
+  const { activeUser, users, isAdmin, clearUser, deleteUser, createUser } = useUser()
   const [folders, setFolders] = useState([])
   const [memberships, setMemberships] = useState([])
   const [search, setSearch] = useState('')
@@ -197,6 +197,7 @@ export default function Desktop() {
           activeUserId={activeUser.id}
           onClose={() => setShowAdmin(false)}
           onDelete={deleteUser}
+          onCreate={createUser}
         />
       )}
 
@@ -325,9 +326,15 @@ function AboutModal({ onClose }) {
   )
 }
 
-function AdminUsersModal({ users, activeUserId, onClose, onDelete }) {
-  const [confirming, setConfirming] = useState(null)
-  const [deleting, setDeleting] = useState(false)
+function AdminUsersModal({ users, activeUserId, onClose, onDelete, onCreate }) {
+  const [confirming, setConfirming]   = useState(null)
+  const [deleting, setDeleting]       = useState(false)
+  const [showForm, setShowForm]       = useState(false)
+  const [newName, setNewName]         = useState('')
+  const [newEmail, setNewEmail]       = useState('')
+  const [newIsAdmin, setNewIsAdmin]   = useState(false)
+  const [creating, setCreating]       = useState(false)
+  const [error, setError]             = useState('')
 
   async function handleDelete(userId) {
     setDeleting(true)
@@ -339,6 +346,24 @@ function AdminUsersModal({ users, activeUserId, onClose, onDelete }) {
     }
   }
 
+  async function handleCreate(e) {
+    e.preventDefault()
+    if (!newName.trim()) return
+    setCreating(true)
+    setError('')
+    try {
+      await onCreate(newName.trim(), { isAdmin: newIsAdmin, email: newEmail })
+      setNewName('')
+      setNewEmail('')
+      setNewIsAdmin(false)
+      setShowForm(false)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setCreating(false)
+    }
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
@@ -346,40 +371,83 @@ function AdminUsersModal({ users, activeUserId, onClose, onDelete }) {
           <h2 className="font-bold text-gray-800">Brukere</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600">✕</button>
         </div>
-        <div className="px-6 py-4 space-y-2 max-h-[60vh] overflow-y-auto">
+
+        <div className="px-6 py-4 space-y-2 max-h-[50vh] overflow-y-auto">
           {users.map(user => (
             <div key={user.id} className="flex items-center gap-3 py-2 border-b border-gray-50 last:border-0">
               <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center text-primary-600 font-semibold text-sm shrink-0">
                 {user.name.charAt(0).toUpperCase()}
               </div>
-              <span className="flex-1 text-sm font-medium text-gray-700">{user.name}</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-gray-700">{user.name}</p>
+                {user.google_account_email && (
+                  <p className="text-xs text-gray-400 truncate">{user.google_account_email}</p>
+                )}
+              </div>
               {user.is_admin && (
-                <span className="text-xs text-amber-600 font-semibold bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">Admin</span>
+                <span className="text-xs text-amber-600 font-semibold bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full shrink-0">Admin</span>
               )}
               {!user.is_admin && user.id !== activeUserId && (
                 confirming === user.id ? (
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 shrink-0">
                     <span className="text-xs text-gray-500">Sikker?</span>
-                    <button
-                      disabled={deleting}
-                      onClick={() => handleDelete(user.id)}
-                      className="text-xs text-red-500 font-semibold hover:text-red-700"
-                    >
-                      Ja, slett
-                    </button>
+                    <button disabled={deleting} onClick={() => handleDelete(user.id)}
+                      className="text-xs text-red-500 font-semibold hover:text-red-700">Ja, slett</button>
                     <button onClick={() => setConfirming(null)} className="text-xs text-gray-400 hover:text-gray-600">Avbryt</button>
                   </div>
                 ) : (
-                  <button
-                    onClick={() => setConfirming(user.id)}
-                    className="text-xs text-red-400 hover:text-red-600 border border-red-200 rounded px-2 py-0.5 transition-colors"
-                  >
+                  <button onClick={() => setConfirming(user.id)}
+                    className="text-xs text-red-400 hover:text-red-600 border border-red-200 rounded px-2 py-0.5 transition-colors shrink-0">
                     Slett
                   </button>
                 )
               )}
             </div>
           ))}
+        </div>
+
+        <div className="px-6 py-4 border-t border-gray-100">
+          {!showForm ? (
+            <button onClick={() => setShowForm(true)}
+              className="w-full text-sm bg-primary-500 text-white rounded-lg px-4 py-2 hover:bg-primary-600 transition-colors font-medium">
+              + Opprett ny bruker
+            </button>
+          ) : (
+            <form onSubmit={handleCreate} className="space-y-3">
+              <p className="text-sm font-semibold text-gray-700">Ny bruker</p>
+              <input
+                autoFocus
+                type="text"
+                placeholder="Navn *"
+                value={newName}
+                onChange={e => setNewName(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400"
+              />
+              <input
+                type="email"
+                placeholder="Google-konto e-post (valgfritt)"
+                value={newEmail}
+                onChange={e => setNewEmail(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400"
+              />
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input type="checkbox" checked={newIsAdmin} onChange={e => setNewIsAdmin(e.target.checked)}
+                  className="w-4 h-4 accent-primary-500" />
+                <span className="text-sm text-gray-600">Admin-rettigheter</span>
+              </label>
+              {error && <p className="text-xs text-red-500">{error}</p>}
+              <div className="flex gap-2">
+                <button type="submit" disabled={creating || !newName.trim()}
+                  className="flex-1 bg-primary-500 text-white rounded-lg py-2 text-sm font-medium hover:bg-primary-600 disabled:opacity-50 transition-colors">
+                  {creating ? 'Oppretter...' : 'Opprett'}
+                </button>
+                <button type="button" onClick={() => { setShowForm(false); setError('') }}
+                  className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700 border border-gray-200 rounded-lg transition-colors">
+                  Avbryt
+                </button>
+              </div>
+            </form>
+          )}
         </div>
       </div>
     </div>

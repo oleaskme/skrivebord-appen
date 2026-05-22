@@ -41,10 +41,13 @@ export function UserProvider({ children }) {
     localStorage.removeItem('activeUserId')
   }
 
-  async function createUser(name) {
+  async function createUser(name, { isAdmin = false, email = '' } = {}) {
+    const insert = { name }
+    if (isAdmin) insert.is_admin = true
+    if (email.trim()) insert.google_account_email = email.trim()
     const { data, error } = await supabase
       .from('users')
-      .insert({ name })
+      .insert(insert)
       .select()
       .single()
     if (error) throw error
