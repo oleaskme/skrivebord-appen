@@ -4,7 +4,7 @@ import { Table, TableRow, TableHeader, TableCell } from '@tiptap/extension-table
 import { TaskList } from '@tiptap/extension-task-list'
 import { TaskItem } from '@tiptap/extension-task-item'
 import { Color } from '@tiptap/extension-color'
-import TextStyle from '@tiptap/extension-text-style'
+import { TextStyle } from '@tiptap/extension-text-style'
 import { useEffect } from 'react'
 
 function ToolbarButton({ onClick, active, title, children, style }) {
