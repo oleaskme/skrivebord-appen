@@ -104,6 +104,30 @@ export default function KaiaHelperPanel({ folderId }) {
 
   const loadSessions = useCallback(async () => {
     setLoadingSessions(true)
+
+    // Engangsmigrasjon: flytt localStorage-samtaler til Supabase
+    const lsKey = `kaia_sessions_${folderId}`
+    const lsRaw = localStorage.getItem(lsKey)
+    if (lsRaw) {
+      try {
+        const lsSessions = JSON.parse(lsRaw) ?? []
+        if (lsSessions.length > 0) {
+          await supabase.from('kaia_sessions').insert(
+            lsSessions.map(s => ({
+              id: s.id,
+              folder_id: folderId,
+              user_id: activeUser?.id ?? null,
+              title: s.title || 'Samtale',
+              messages: sanitizeForDb(s.messages ?? []),
+              created_at: s.createdAt ? new Date(s.createdAt).toISOString() : new Date().toISOString(),
+              updated_at: s.updatedAt ? new Date(s.updatedAt).toISOString() : new Date().toISOString(),
+            }))
+          )
+        }
+      } catch {}
+      localStorage.removeItem(lsKey)
+    }
+
     const { data } = await supabase
       .from('kaia_sessions')
       .select('id, title, created_at, updated_at, messages')
@@ -112,7 +136,7 @@ export default function KaiaHelperPanel({ folderId }) {
       .limit(MAX_SESSIONS)
     setSessions(data ?? [])
     setLoadingSessions(false)
-  }, [folderId])
+  }, [folderId, activeUser?.id])
 
   useEffect(() => { loadSessions() }, [loadSessions])
 
