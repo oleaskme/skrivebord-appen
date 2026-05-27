@@ -423,9 +423,18 @@ Regler for handlinger:
 - Felter som ikke skal endres i update_*-handlinger kan utelates.
 - Svar alltid på norsk. Vær konkret og handlingsorientert.`
 
+      const { images = [] } = req.body
+      const userContent = []
+      for (const img of images) {
+        if (img.base64 && img.mediaType) {
+          userContent.push({ type: 'image', source: { type: 'base64', media_type: img.mediaType, data: img.base64 } })
+        }
+      }
+      if (message) userContent.push({ type: 'text', text: message })
+
       const messages = [
-        ...history.map(h => ({ role: h.role, content: h.content })),
-        { role: 'user', content: message },
+        ...history.map(h => ({ role: h.role, content: h.content || '' })),
+        { role: 'user', content: userContent.length === 1 && userContent[0].type === 'text' ? userContent[0].text : userContent },
       ]
 
       const response = await withRetry(() => anthropic.messages.create({
