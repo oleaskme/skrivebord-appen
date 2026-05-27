@@ -22,7 +22,7 @@ function ToolbarButton({ onClick, active, title, children, style }) {
 }
 
 const TEXT_COLORS = [
-  { color: '#111827', label: 'Sort' },
+  { color: null,      label: 'Sort (standard)' },
   { color: '#dc2626', label: 'Rød' },
   { color: '#16a34a', label: 'Grønn' },
 ]
@@ -77,7 +77,7 @@ export default function RichTextEditor({ content, onChange, editable = true, pla
           <div className="w-px h-4 bg-gray-200 mx-1" />
           {btn('≡', () => editor.chain().focus().toggleBulletList().run(), editor.isActive('bulletList'), 'Punktliste')}
           {btn('1.', () => editor.chain().focus().toggleOrderedList().run(), editor.isActive('orderedList'), 'Nummerert liste')}
-          {btn('✓', () => editor.chain().focus().toggleTaskList().run(), editor.isActive('taskList'), 'Sjekkliste')}
+          {btn('☑', () => editor.chain().focus().toggleTaskList().run(), editor.isActive('taskList'), 'Sjekkliste')}
           <div className="w-px h-4 bg-gray-200 mx-1" />
           {btn('"', () => editor.chain().focus().toggleBlockquote().run(), editor.isActive('blockquote'), 'Sitat')}
           {btn('—', () => editor.chain().focus().setHorizontalRule().run(), false, 'Skillelinje')}
@@ -85,18 +85,18 @@ export default function RichTextEditor({ content, onChange, editable = true, pla
           {/* Tekstfarger */}
           {TEXT_COLORS.map(({ color, label }) => (
             <ToolbarButton
-              key={color}
+              key={label}
               onClick={() => {
-                if (activeColor === color) {
+                if (color === null) {
                   editor.chain().focus().unsetColor().run()
                 } else {
                   editor.chain().focus().setColor(color).run()
                 }
               }}
-              active={activeColor === color}
+              active={color === null ? !activeColor : activeColor === color}
               title={label}
             >
-              <span style={{ color, fontWeight: 700 }}>A</span>
+              <span style={{ color: color ?? '#111827', fontWeight: 700 }}>A</span>
             </ToolbarButton>
           ))}
           <div className="w-px h-4 bg-gray-200 mx-1" />
