@@ -31,3 +31,9 @@
 .tiptap-editor .tiptap th { @apply bg-gray-100 font-semibold text-gray-700 border border-gray-300 px-3 py-2 text-left; }
 .tiptap-editor .tiptap td { @apply border border-gray-200 px-3 py-2 text-gray-700; }
 .tiptap-editor .tiptap tr:nth-child(even) td { @apply bg-gray-50; }
+.tiptap-editor .tiptap ul[data-type="taskList"] { @apply list-none pl-0; }
+.tiptap-editor .tiptap ul[data-type="taskList"] li { @apply flex items-start gap-2 mb-1; }
+.tiptap-editor .tiptap ul[data-type="taskList"] li > label { @apply shrink-0 mt-0.5; }
+.tiptap-editor .tiptap ul[data-type="taskList"] li > label input[type="checkbox"] { @apply w-4 h-4 accent-green-600 cursor-pointer; }
+.tiptap-editor .tiptap ul[data-type="taskList"] li > div { @apply flex-1; }
+.tiptap-editor .tiptap ul[data-type="taskList"] li[data-checked="true"] > div { @apply line-through text-gray-400; }
