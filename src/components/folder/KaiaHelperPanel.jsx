@@ -1,26 +1,26 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import AITasksPanel from './AITasksPanel'
 import kaiaImg from '../../assets/kaia.png'
-
-const SESSION_KEY = folderId => `kaia_sessions_${folderId}`
-const MAX_SESSIONS = 30
-
-function loadSessions(folderId) {
-  try { return JSON.parse(localStorage.getItem(SESSION_KEY(folderId))) ?? [] } catch { return [] }
-}
-function saveSessions(folderId, sessions) {
-  localStorage.setItem(SESSION_KEY(folderId), JSON.stringify(sessions.slice(0, MAX_SESSIONS)))
-}
+import { supabase } from '../../lib/supabase'
+import { useUser } from '../../context/UserContext'
 
 const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+const MAX_SESSIONS = 30
+
+// Strip image data before saving to DB (too large for JSONB)
+function sanitizeForDb(messages) {
+  return messages.map(m => ({
+    ...m,
+    images: (m.images ?? []).map(({ id, mediaType }) => ({ id, mediaType, unavailable: true })),
+  }))
+}
 
 function fileToBase64(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
     reader.onload = () => {
       const dataUrl = reader.result
-      const base64 = dataUrl.split(',')[1]
-      resolve({ dataUrl, base64, mediaType: file.type, id: crypto.randomUUID() })
+      resolve({ dataUrl, base64: dataUrl.split(',')[1], mediaType: file.type, id: crypto.randomUUID() })
     }
     reader.onerror = reject
     reader.readAsDataURL(file)
@@ -53,10 +53,12 @@ function ChatMessage({ msg }) {
         {msg.images?.length > 0 && (
           <div className="flex flex-wrap gap-1.5">
             {msg.images.map(img => (
-              <img key={img.id} src={img.dataUrl} alt="vedlegg"
-                className="h-32 max-w-[200px] object-cover rounded-xl border border-gray-200 cursor-pointer"
-                onClick={() => window.open(img.dataUrl, '_blank')}
-              />
+              img.unavailable
+                ? <span key={img.id} className="text-xs text-gray-400 italic px-2 py-1 bg-gray-100 rounded-lg">📷 Bilde ikke tilgjengelig på denne enheten</span>
+                : <img key={img.id} src={img.dataUrl} alt="vedlegg"
+                    className="h-32 max-w-[200px] object-cover rounded-xl border border-gray-200 cursor-pointer"
+                    onClick={() => window.open(img.dataUrl, '_blank')}
+                  />
             ))}
           </div>
         )}
@@ -85,29 +87,50 @@ function ChatMessage({ msg }) {
 }
 
 export default function KaiaHelperPanel({ folderId }) {
-  const [sessions, setSessions] = useState(() => loadSessions(folderId))
+  const { activeUser } = useUser()
+  const [sessions, setSessions] = useState([])
   const [activeSessionId, setActiveSessionId] = useState(null)
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [pendingImages, setPendingImages] = useState([])
   const [loading, setLoading] = useState(false)
+  const [loadingSessions, setLoadingSessions] = useState(true)
   const [listening, setListening] = useState(false)
   const bottomRef = useRef(null)
   const recognitionRef = useRef(null)
   const baseInputRef = useRef('')
   const fileInputRef = useRef(null)
-  const textareaRef = useRef(null)
+  const saveTimeoutRef = useRef(null)
 
+  const loadSessions = useCallback(async () => {
+    setLoadingSessions(true)
+    const { data } = await supabase
+      .from('kaia_sessions')
+      .select('id, title, created_at, updated_at, messages')
+      .eq('folder_id', folderId)
+      .order('updated_at', { ascending: false })
+      .limit(MAX_SESSIONS)
+    setSessions(data ?? [])
+    setLoadingSessions(false)
+  }, [folderId])
+
+  useEffect(() => { loadSessions() }, [loadSessions])
+
+  // Debounced save to DB when messages change
   useEffect(() => {
     if (!activeSessionId || messages.length === 0) return
-    setSessions(prev => {
-      const updated = prev.map(s =>
-        s.id === activeSessionId ? { ...s, messages, updatedAt: Date.now() } : s
-      )
-      saveSessions(folderId, updated)
-      return updated
-    })
-  }, [messages]) // eslint-disable-line react-hooks/exhaustive-deps
+    clearTimeout(saveTimeoutRef.current)
+    saveTimeoutRef.current = setTimeout(async () => {
+      await supabase
+        .from('kaia_sessions')
+        .update({ messages: sanitizeForDb(messages), updated_at: new Date().toISOString() })
+        .eq('id', activeSessionId)
+      setSessions(prev => prev.map(s =>
+        s.id === activeSessionId ? { ...s, messages: sanitizeForDb(messages), updated_at: new Date().toISOString() } : s
+      ))
+    }, 1000)
+    return () => clearTimeout(saveTimeoutRef.current)
+  }, [messages, activeSessionId])
 
   function newSession() {
     setActiveSessionId(null)
@@ -118,18 +141,15 @@ export default function KaiaHelperPanel({ folderId }) {
 
   function openSession(session) {
     setActiveSessionId(session.id)
-    setMessages(session.messages)
+    setMessages(session.messages ?? [])
     setInput('')
     setPendingImages([])
   }
 
-  function deleteSession(e, id) {
+  async function deleteSession(e, id) {
     e.stopPropagation()
-    setSessions(prev => {
-      const updated = prev.filter(s => s.id !== id)
-      saveSessions(folderId, updated)
-      return updated
-    })
+    await supabase.from('kaia_sessions').delete().eq('id', id)
+    setSessions(prev => prev.filter(s => s.id !== id))
     if (activeSessionId === id) newSession()
   }
 
@@ -146,8 +166,7 @@ export default function KaiaHelperPanel({ folderId }) {
     const imageItems = Array.from(items).filter(i => i.kind === 'file' && ACCEPTED_IMAGE_TYPES.includes(i.type))
     if (!imageItems.length) return
     e.preventDefault()
-    const files = imageItems.map(i => i.getAsFile())
-    addImages(files)
+    addImages(imageItems.map(i => i.getAsFile()))
   }
 
   function handleFileChange(e) {
@@ -188,9 +207,7 @@ export default function KaiaHelperPanel({ folderId }) {
     setListening(true)
   }
 
-  function stopListening() {
-    recognitionRef.current?.stop()
-  }
+  function stopListening() { recognitionRef.current?.stop() }
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -215,19 +232,25 @@ export default function KaiaHelperPanel({ folderId }) {
 
     let sessionId = activeSessionId
     if (!sessionId) {
-      sessionId = crypto.randomUUID()
       const title = q.slice(0, 60) || (imgs.length > 0 ? '📷 Bilde' : 'Samtale')
-      const newSess = { id: sessionId, title, createdAt: Date.now(), updatedAt: Date.now(), messages: nextMessages }
-      setSessions(prev => {
-        const updated = [newSess, ...prev]
-        saveSessions(folderId, updated)
-        return updated
-      })
-      setActiveSessionId(sessionId)
+      const { data: newSess } = await supabase
+        .from('kaia_sessions')
+        .insert({
+          folder_id: folderId,
+          user_id: activeUser?.id ?? null,
+          title,
+          messages: sanitizeForDb(nextMessages),
+        })
+        .select('id, title, created_at, updated_at, messages')
+        .single()
+      if (newSess) {
+        sessionId = newSess.id
+        setActiveSessionId(sessionId)
+        setSessions(prev => [newSess, ...prev])
+      }
     }
 
     try {
-      // History: send only text content to keep payloads small
       const history = messages.map(m => ({ role: m.role, content: m.content || '' }))
       const res = await fetch('/api/ai/run', {
         method: 'POST',
@@ -290,7 +313,8 @@ export default function KaiaHelperPanel({ folderId }) {
           </button>
         </div>
         <div className="flex-1 overflow-y-auto py-1">
-          {sessions.length === 0 && (
+          {loadingSessions && <p className="text-xs text-gray-400 px-3 py-4 text-center">Laster...</p>}
+          {!loadingSessions && sessions.length === 0 && (
             <p className="text-xs text-gray-400 px-3 py-4 text-center">Ingen tidligere samtaler</p>
           )}
           {sessions.map(s => (
@@ -303,7 +327,7 @@ export default function KaiaHelperPanel({ folderId }) {
             >
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-medium truncate leading-tight">{s.title || 'Samtale'}</p>
-                <p className="text-[10px] text-gray-400 mt-0.5">{formatSessionDate(s.updatedAt ?? s.createdAt)}</p>
+                <p className="text-[10px] text-gray-400 mt-0.5">{formatSessionDate(s.updated_at ?? s.created_at)}</p>
               </div>
               <button
                 onClick={e => deleteSession(e, s.id)}
@@ -319,7 +343,6 @@ export default function KaiaHelperPanel({ folderId }) {
 
       {/* Midten: chat */}
       <div className="flex-1 flex flex-col overflow-hidden border-r border-gray-200">
-        {/* Header */}
         <div className="shrink-0 px-4 py-3 border-b border-gray-100 flex items-center gap-3">
           <img src={kaiaImg} alt="Kaia" className="w-8 h-8 rounded-full object-cover" />
           <div>
@@ -328,7 +351,6 @@ export default function KaiaHelperPanel({ folderId }) {
           </div>
         </div>
 
-        {/* Meldingsliste */}
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
           {messages.length === 0 && (
             <div className="flex items-center justify-center h-full text-gray-300 flex-col gap-3">
@@ -336,9 +358,7 @@ export default function KaiaHelperPanel({ folderId }) {
               <p className="text-sm text-center text-gray-400">Hei! Jeg er Kaia. Jeg kan hjelpe deg med oppgaver,<br />risikoer og dokumenter i denne mappen.</p>
             </div>
           )}
-          {messages.map(msg => (
-            <ChatMessage key={msg.id} msg={msg} />
-          ))}
+          {messages.map(msg => <ChatMessage key={msg.id} msg={msg} />)}
           {loading && (
             <div className="flex justify-start">
               <div className="flex items-center gap-2">
@@ -354,9 +374,7 @@ export default function KaiaHelperPanel({ folderId }) {
           <div ref={bottomRef} />
         </div>
 
-        {/* Input */}
         <div className="shrink-0 px-4 py-3 border-t border-gray-100">
-          {/* Bildeforhåndsvisning */}
           {pendingImages.length > 0 && (
             <div className="flex flex-wrap gap-2 mb-2">
               {pendingImages.map(img => (
@@ -373,24 +391,12 @@ export default function KaiaHelperPanel({ folderId }) {
             )}
           </div>
           <div className="flex gap-2 items-end">
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept={ACCEPTED_IMAGE_TYPES.join(',')}
-              multiple
-              className="hidden"
-              onChange={handleFileChange}
-            />
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={loading}
-              title="Last opp bilde"
-              className="shrink-0 rounded-xl px-3 py-2 text-lg bg-gray-100 text-gray-500 hover:bg-gray-200 transition-colors disabled:opacity-50"
-            >
+            <input ref={fileInputRef} type="file" accept={ACCEPTED_IMAGE_TYPES.join(',')} multiple className="hidden" onChange={handleFileChange} />
+            <button onClick={() => fileInputRef.current?.click()} disabled={loading} title="Last opp bilde"
+              className="shrink-0 rounded-xl px-3 py-2 text-lg bg-gray-100 text-gray-500 hover:bg-gray-200 transition-colors disabled:opacity-50">
               🖼️
             </button>
             <textarea
-              ref={textareaRef}
               rows={2}
               value={input}
               onChange={e => setInput(e.target.value)}
@@ -401,26 +407,15 @@ export default function KaiaHelperPanel({ folderId }) {
               className="flex-1 border border-gray-300 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 disabled:opacity-50 resize-none leading-relaxed"
             />
             <button
-              onMouseDown={startListening}
-              onMouseUp={stopListening}
-              onMouseLeave={stopListening}
-              onTouchStart={e => { e.preventDefault(); startListening() }}
-              onTouchEnd={stopListening}
-              disabled={loading}
-              title="Hold inne for å tale"
-              className={`shrink-0 rounded-xl px-3 py-2 text-lg transition-all select-none disabled:opacity-50 ${
-                listening
-                  ? 'bg-red-500 text-white shadow-lg scale-110 animate-pulse'
-                  : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-              }`}
+              onMouseDown={startListening} onMouseUp={stopListening} onMouseLeave={stopListening}
+              onTouchStart={e => { e.preventDefault(); startListening() }} onTouchEnd={stopListening}
+              disabled={loading} title="Hold inne for å tale"
+              className={`shrink-0 rounded-xl px-3 py-2 text-lg transition-all select-none disabled:opacity-50 ${listening ? 'bg-red-500 text-white shadow-lg scale-110 animate-pulse' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
             >
               🎙️
             </button>
-            <button
-              onClick={sendMessage}
-              disabled={loading || (!input.trim() && pendingImages.length === 0)}
-              className="bg-primary-500 text-white rounded-xl px-4 py-2 text-sm font-semibold hover:bg-primary-600 disabled:opacity-50 transition-colors shrink-0"
-            >
+            <button onClick={sendMessage} disabled={loading || (!input.trim() && pendingImages.length === 0)}
+              className="bg-primary-500 text-white rounded-xl px-4 py-2 text-sm font-semibold hover:bg-primary-600 disabled:opacity-50 transition-colors shrink-0">
               Send
             </button>
           </div>
