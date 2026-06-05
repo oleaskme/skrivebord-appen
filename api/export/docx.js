@@ -2,6 +2,7 @@ import {
   Document, Packer, Paragraph, TextRun, HeadingLevel,
   Table, TableRow, TableCell, WidthType, BorderStyle,
   AlignmentType, Footer, PageNumber, ShadingType, convertInchesToTwip,
+  LineRuleType,
 } from 'docx'
 import { supabase } from '../_lib/supabase.js'
 
@@ -27,7 +28,8 @@ const S = {
   h1Before: 560, h1After: 280,
   h2Before: 480, h2After: 180,
   h3Before: 320, h3After: 120,
-  bodyAfter: 240,
+  bodyBefore: 0, bodyAfter: 0,
+  bodyLine: 276,  // 1,15 × 240
 }
 
 const MARGIN = convertInchesToTwip(1.1)  // ~2,8 cm
@@ -107,7 +109,7 @@ function htmlToDocxParagraphs(html) {
       if (numMatch) {
         // Ordered list item — prepend number manually
         out.push(new Paragraph({
-          spacing: { after: S.bodyAfter },
+          spacing: { before: S.bodyBefore, after: S.bodyAfter, line: S.bodyLine, lineRule: LineRuleType.AUTO },
           indent: { left: 360 },
           children: [
             new TextRun({ text: `${numMatch[1]}.\t`, font: 'Arial', size: S.bodySize, color: S.bodyColor }),
@@ -117,7 +119,7 @@ function htmlToDocxParagraphs(html) {
       } else {
         out.push(new Paragraph({
           bullet: { level: 0 },
-          spacing: { after: S.bodyAfter },
+          spacing: { before: S.bodyBefore, after: S.bodyAfter, line: S.bodyLine, lineRule: LineRuleType.AUTO },
           children: styledRuns(inner, S.bodySize, S.bodyColor),
         }))
       }
@@ -126,7 +128,7 @@ function htmlToDocxParagraphs(html) {
     // p / blockquote
     if (inner) {
       out.push(new Paragraph({
-        spacing: { after: S.bodyAfter },
+        spacing: { before: S.bodyBefore, after: S.bodyAfter, line: S.bodyLine, lineRule: LineRuleType.AUTO },
         children: styledRuns(inner, S.bodySize, S.bodyColor),
       }))
     }
@@ -135,7 +137,7 @@ function htmlToDocxParagraphs(html) {
   if (out.length === 0) {
     for (const line of html.replace(/<[^>]+>/g, '').split('\n')) {
       out.push(line.trim()
-        ? new Paragraph({ spacing: { after: S.bodyAfter }, children: [new TextRun({ text: line.trim(), font: 'Arial', size: S.bodySize, color: S.bodyColor })] })
+        ? new Paragraph({ spacing: { before: S.bodyBefore, after: S.bodyAfter, line: S.bodyLine, lineRule: LineRuleType.AUTO }, children: [new TextRun({ text: line.trim(), font: 'Arial', size: S.bodySize, color: S.bodyColor })] })
         : new Paragraph({ text: '' })
       )
     }
@@ -154,7 +156,7 @@ function parseContent(raw) {
   const bodyParagraphs = isHtml(bodyText)
     ? htmlToDocxParagraphs(bodyText)
     : bodyText.split('\n').map(l => l.trim()
-        ? new Paragraph({ spacing: { after: S.bodyAfter }, children: [new TextRun({ text: l.trim(), font: 'Arial', size: S.bodySize, color: S.bodyColor })] })
+        ? new Paragraph({ spacing: { before: S.bodyBefore, after: S.bodyAfter, line: S.bodyLine, lineRule: LineRuleType.AUTO }, children: [new TextRun({ text: l.trim(), font: 'Arial', size: S.bodySize, color: S.bodyColor })] })
         : new Paragraph({ text: '' })
       )
 

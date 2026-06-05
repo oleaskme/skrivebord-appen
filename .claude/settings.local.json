@@ -14,7 +14,12 @@
       "mcp__claude_ai_Supabase__execute_sql",
       "Bash(xargs cat *)",
       "Bash(npx vercel *)",
-      "mcp__claude_ai_Supabase__get_logs"
+      "mcp__claude_ai_Supabase__get_logs",
+      "Bash(git log *)",
+      "Bash(supabase db *)",
+      "Bash(supabase --version)",
+      "Bash(vercel --version)",
+      "Bash(pbpaste *)"
     ]
   }
 }
