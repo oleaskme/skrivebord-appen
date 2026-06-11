@@ -118,6 +118,12 @@ export default function Desktop() {
             Bytt bruker
           </button>
           <button
+            onClick={clearUser}
+            className="flex items-center gap-2 text-sm text-gray-500 hover:text-red-600 border border-gray-200 rounded-lg px-4 py-2 transition-colors"
+          >
+            Logg ut
+          </button>
+          <button
             onClick={() => setAboutOpen(true)}
             className="flex flex-col items-center justify-center w-10 h-10 rounded-full border-2 border-primary-200 text-primary-500 hover:bg-primary-50 hover:border-primary-400 transition-colors font-bold text-lg"
             title="Om skrivebordsappen"
