@@ -27,8 +27,20 @@ export function UserProvider({ children }) {
   }, [])
 
   async function loadUsers() {
-    const { data } = await supabase.from('users').select('*').order('name')
-    setUsers(data ?? [])
+    const { data } = await supabase
+      .from('users')
+      .select('id, name, google_account_email, is_admin, created_at, password_hash')
+      .order('name')
+    setUsers((data ?? []).map(u => ({ ...u, has_password: u.password_hash !== null, password_hash: undefined })))
+  }
+
+  async function verifyPassword(userId, password) {
+    const { data, error } = await supabase.rpc('verify_user_password', {
+      p_user_id: userId,
+      p_password: password,
+    })
+    if (error) throw error
+    return data === true
   }
 
   function selectUser(user) {
@@ -64,7 +76,7 @@ export function UserProvider({ children }) {
   const isAdmin = activeUser?.is_admin === true
 
   return (
-    <UserContext.Provider value={{ activeUser, users, loading, isAdmin, selectUser, clearUser, createUser, deleteUser, loadUsers }}>
+    <UserContext.Provider value={{ activeUser, users, loading, isAdmin, selectUser, clearUser, createUser, deleteUser, loadUsers, verifyPassword }}>
       {children}
     </UserContext.Provider>
   )
