@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk'
+import { jsonrepair } from 'jsonrepair'
 import { supabase, supabaseAdmin } from '../_lib/supabase.js'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
@@ -458,7 +459,7 @@ Regler for handlinger:
           const raw = actionsMatch[1].trim()
           const jsonStr = raw.match(/\[[\s\S]*\]/)
           if (!jsonStr) throw new Error(`Fant ingen JSON-array i ACTIONS-blokk. Raw: ${raw.slice(0, 200)}`)
-          const actions = JSON.parse(jsonStr[0])
+          const actions = JSON.parse(jsonrepair(jsonStr[0]))
           console.log('Kaia actions:', JSON.stringify(actions))
           for (const action of actions) {
             if (action.type === 'update_task_status' && action.id && action.status) {
@@ -701,14 +702,14 @@ Oppdater MASTER-dokumentet basert på INPUT-dokumentene og returner JSON.${userI
 
     let result
     try {
-      result = JSON.parse(extractJson(rawText))
+      result = JSON.parse(jsonrepair(extractJson(rawText)))
     } catch {
       const match = rawText.match(/\{[\s\S]*\}/)
       if (!match) {
         console.error('AI run: ugyldig JSON. Råtekst (500 tegn):', rawText.slice(0, 500))
         throw new Error('Claude returnerte ikke gyldig JSON')
       }
-      result = JSON.parse(match[0])
+      result = JSON.parse(jsonrepair(match[0]))
     }
 
     // Normaliser til HTML (fallback dersom AI returnerte markdown)
