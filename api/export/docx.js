@@ -243,6 +243,47 @@ function stripHtml(html) {
     .trim()
 }
 
+function parseInlineRuns(html) {
+  const tokens = html.split(/(<\/?(?:strong|b|em|i)[^>]*>)/gi)
+  let bold = false, italic = false
+  const raw = []
+  for (const token of tokens) {
+    if (/^<(strong|b)(\s|>)/i.test(token)) { bold = true; continue }
+    if (/^<\/(strong|b)>/i.test(token))     { bold = false; continue }
+    if (/^<(em|i)(\s|>)/i.test(token))      { italic = true; continue }
+    if (/^<\/(em|i)>/i.test(token))         { italic = false; continue }
+    const text = token.replace(/<[^>]+>/g, '')
+      .replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&nbsp;/g,' ')
+    if (text) raw.push({ text: sanitizePdfText(text), bold, italic })
+  }
+  // Slå sammen påfølgende runs med samme stil
+  const merged = []
+  for (const r of raw) {
+    const last = merged[merged.length - 1]
+    if (last && last.bold === r.bold && last.italic === r.italic) last.text += r.text
+    else merged.push({ ...r })
+  }
+  return merged.filter(r => r.text)
+}
+
+function pdfFont(bold, italic) {
+  if (bold && italic) return 'Helvetica-BoldOblique'
+  if (bold) return 'Helvetica-Bold'
+  if (italic) return 'Helvetica-Oblique'
+  return 'Helvetica'
+}
+
+function renderInlineRuns(doc, runs, x, y, width, lineGap = 2) {
+  if (!runs.length) return
+  for (let i = 0; i < runs.length; i++) {
+    const r = runs[i]
+    const isLast = i === runs.length - 1
+    doc.font(pdfFont(r.bold, r.italic))
+    if (i === 0) doc.text(r.text, x, y, { continued: !isLast, width, lineGap })
+    else         doc.text(r.text, { continued: !isLast, lineGap })
+  }
+}
+
 function sanitizePdfText(text) {
   return text
     // Fjern emoji (supplementary plane U+1F000–U+1FFFF og andre emoji-blokker)
@@ -275,14 +316,14 @@ function parseContentPdf(raw) {
       if (/^h[1-6]$/.test(tag)) { blocks.push({ type: tag, text: sanitizePdfText(stripHtml(inner)) }); continue }
       if (tag === 'li') {
         const numMatch = attrs.match(/data-num="(\d+)"/)
-        blocks.push({ type: 'li', text: sanitizePdfText(stripHtml(inner)), num: numMatch ? parseInt(numMatch[1]) : null })
+        blocks.push({ type: 'li', runs: parseInlineRuns(inner), num: numMatch ? parseInt(numMatch[1]) : null })
         continue
       }
-      if (inner) blocks.push({ type: 'p', text: sanitizePdfText(stripHtml(inner)) })
+      if (inner) blocks.push({ type: 'p', runs: parseInlineRuns(inner) })
     }
   } else {
     for (const line of bodyText.split('\n')) {
-      if (line.trim()) blocks.push({ type: 'p', text: sanitizePdfText(line.trim()) })
+      if (line.trim()) blocks.push({ type: 'p', runs: [{ text: sanitizePdfText(line.trim()), bold: false, italic: false }] })
       else blocks.push({ type: 'blank' })
     }
   }
@@ -330,13 +371,20 @@ function renderPdfBlocks(doc, blocks, pageWidth) {
       doc.moveDown(0.2); continue
     }
     if (block.type === 'li') {
-      doc.font('Helvetica').fontSize(P.bodySize).fillColor(P.bodyColor)
+      doc.fontSize(P.bodySize).fillColor(P.bodyColor)
       const prefix = block.num != null ? `${block.num}.  ` : '•  '
-      doc.text(prefix + block.text, P.margin + 12, doc.y, { width: textWidth - 12, lineGap: 2 })
+      const liRuns = [{ text: prefix, bold: false, italic: false }, ...(block.runs ?? [])]
+      const merged = []
+      for (const r of liRuns) {
+        const last = merged[merged.length - 1]
+        if (last && last.bold === r.bold && last.italic === r.italic) last.text += r.text
+        else merged.push({ ...r })
+      }
+      renderInlineRuns(doc, merged.filter(r => r.text), P.margin + 12, doc.y, textWidth - 12)
       doc.moveDown(0.15); continue
     }
-    doc.font('Helvetica').fontSize(P.bodySize).fillColor(P.bodyColor)
-    doc.text(block.text, P.margin, doc.y, { width: textWidth, lineGap: 2 })
+    doc.fontSize(P.bodySize).fillColor(P.bodyColor)
+    renderInlineRuns(doc, block.runs ?? [], P.margin, doc.y, textWidth)
     doc.moveDown(0.3)
   }
 }
