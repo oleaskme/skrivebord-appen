@@ -243,6 +243,19 @@ function stripHtml(html) {
     .trim()
 }
 
+function sanitizePdfText(text) {
+  return text
+    // Fjern emoji (supplementary plane U+1F000–U+1FFFF og andre emoji-blokker)
+    .replace(/[\u{1F000}-\u{1FFFF}]/gu, '')
+    .replace(/[\u{2600}-\u{27BF}]/gu, '')   // Misc symbols, dingbats
+    .replace(/[\uFE00-\uFE0F]/g, '')         // Variation selectors
+    // Erstatt piler og spesialtegn Helvetica ikke støtter
+    .replace(/→/g, '->').replace(/←/g, '<-').replace(/↑/g, '^').replace(/↓/g, 'v')
+    .replace(/≥/g, '>=').replace(/≤/g, '<=').replace(/≠/g, '!=')
+    .replace(/  +/g, ' ')
+    .trim()
+}
+
 function parseContentPdf(raw) {
   if (!raw) return { blocks: [], changelogLines: [] }
   const sepIdx = raw.indexOf(CHANGELOG_SEP)
@@ -259,24 +272,24 @@ function parseContentPdf(raw) {
       const attrs = match[2] ?? ''
       const inner = cleanInner(match[3] ?? '')
       if (tag === 'hr') { blocks.push({ type: 'hr' }); continue }
-      if (/^h[1-6]$/.test(tag)) { blocks.push({ type: tag, text: stripHtml(inner) }); continue }
+      if (/^h[1-6]$/.test(tag)) { blocks.push({ type: tag, text: sanitizePdfText(stripHtml(inner)) }); continue }
       if (tag === 'li') {
         const numMatch = attrs.match(/data-num="(\d+)"/)
-        blocks.push({ type: 'li', text: stripHtml(inner), num: numMatch ? parseInt(numMatch[1]) : null })
+        blocks.push({ type: 'li', text: sanitizePdfText(stripHtml(inner)), num: numMatch ? parseInt(numMatch[1]) : null })
         continue
       }
-      if (inner) blocks.push({ type: 'p', text: stripHtml(inner) })
+      if (inner) blocks.push({ type: 'p', text: sanitizePdfText(stripHtml(inner)) })
     }
   } else {
     for (const line of bodyText.split('\n')) {
-      if (line.trim()) blocks.push({ type: 'p', text: line.trim() })
+      if (line.trim()) blocks.push({ type: 'p', text: sanitizePdfText(line.trim()) })
       else blocks.push({ type: 'blank' })
     }
   }
 
   return {
     blocks,
-    changelogLines: changelogText.split('\n').map(l => l.trim()).filter(Boolean),
+    changelogLines: changelogText.split('\n').map(l => sanitizePdfText(l.trim())).filter(Boolean),
   }
 }
 
@@ -360,7 +373,7 @@ async function generatePdf(doc, content, version) {
   pdfDoc.on('data', chunk => chunks.push(chunk))
 
   pdfDoc.font('Helvetica-Bold').fontSize(P.h1Size).fillColor(P.h1Color)
-  pdfDoc.text(doc.name, P.margin, P.margin, { width: pageWidth - P.margin * 2 })
+  pdfDoc.text(sanitizePdfText(doc.name), P.margin, P.margin, { width: pageWidth - P.margin * 2 })
   pdfDoc.moveDown(0.2)
   const lineY = pdfDoc.y
   pdfDoc.moveTo(P.margin, lineY).lineTo(pageWidth - P.margin, lineY).strokeColor(P.h1Color).lineWidth(1).stroke()
