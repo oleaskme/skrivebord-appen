@@ -254,7 +254,7 @@ function parseInlineRuns(html) {
     if (/^<\/(em|i)>/i.test(token))         { italic = false; continue }
     const text = token.replace(/<[^>]+>/g, '')
       .replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&nbsp;/g,' ')
-    if (text) raw.push({ text: sanitizePdfText(text), bold, italic })
+    if (text) raw.push({ text: sanitizeChars(text), bold, italic })
   }
   // Slå sammen påfølgende runs med samme stil
   const merged = []
@@ -284,17 +284,18 @@ function renderInlineRuns(doc, runs, x, y, width, lineGap = 2) {
   }
 }
 
-function sanitizePdfText(text) {
+function sanitizeChars(text) {
   return text
-    // Fjern emoji (supplementary plane U+1F000–U+1FFFF og andre emoji-blokker)
     .replace(/[\u{1F000}-\u{1FFFF}]/gu, '')
-    .replace(/[\u{2600}-\u{27BF}]/gu, '')   // Misc symbols, dingbats
-    .replace(/[\uFE00-\uFE0F]/g, '')         // Variation selectors
-    // Erstatt piler og spesialtegn Helvetica ikke støtter
+    .replace(/[\u{2600}-\u{27BF}]/gu, '')
+    .replace(/[\uFE00-\uFE0F]/g, '')
     .replace(/→/g, '->').replace(/←/g, '<-').replace(/↑/g, '^').replace(/↓/g, 'v')
     .replace(/≥/g, '>=').replace(/≤/g, '<=').replace(/≠/g, '!=')
     .replace(/  +/g, ' ')
-    .trim()
+}
+
+function sanitizePdfText(text) {
+  return sanitizeChars(text).trim()
 }
 
 function parseContentPdf(raw) {
