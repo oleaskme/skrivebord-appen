@@ -128,6 +128,7 @@ function MasterViewer({ doc, folderId, onSaved, onReviewResult }) {
   const [dirty, setDirty] = useState(false)
   const [saving, setSaving] = useState(false)
   const [exporting, setExporting] = useState(false)
+  const [exportingPdf, setExportingPdf] = useState(false)
   const [uploadingDrive, setUploadingDrive] = useState(false)
   const [driveMsg, setDriveMsg] = useState(null)
   const [reviewing, setReviewing] = useState(false)
@@ -281,6 +282,30 @@ function MasterViewer({ doc, folderId, onSaved, onReviewResult }) {
     }
   }
 
+  async function handleDownloadPdf() {
+    setExportingPdf(true)
+    try {
+      if (dirty) {
+        await supabase.from('master_documents')
+          .update({ content: buildFullContent(), updated_at: new Date().toISOString() })
+          .eq('id', doc.id)
+        setDirty(false)
+        onSaved()
+      }
+      const res = await fetch(`/api/export/pdf?masterDocId=${doc.id}`)
+      if (!res.ok) throw new Error('PDF-eksport feilet')
+      const blob = await res.blob()
+      const url  = URL.createObjectURL(blob)
+      const a    = document.createElement('a')
+      a.href     = url
+      a.download = `${doc.name}_v${formatVersion(doc.version_major, doc.version_minor)}.pdf`
+      a.click()
+      URL.revokeObjectURL(url)
+    } finally {
+      setExportingPdf(false)
+    }
+  }
+
   async function handleSaveToDrive() {
     setUploadingDrive(true)
     setDriveMsg(null)
@@ -317,7 +342,11 @@ function MasterViewer({ doc, folderId, onSaved, onReviewResult }) {
           {versionMsg && <span className={`text-xs ${versionMsg.startsWith('Feil') ? 'text-red-500' : 'text-green-600'}`}>{versionMsg}</span>}
           <button onClick={handleDownloadDocx} disabled={exporting}
             className="text-xs border border-gray-200 rounded-lg px-3 py-1.5 text-gray-600 hover:border-gray-300 hover:text-gray-800 disabled:opacity-50 transition-colors">
-            {exporting ? '...' : '⬇ Last ned'}
+            {exporting ? '...' : '⬇ Word'}
+          </button>
+          <button onClick={handleDownloadPdf} disabled={exportingPdf}
+            className="text-xs border border-gray-200 rounded-lg px-3 py-1.5 text-gray-600 hover:border-gray-300 hover:text-gray-800 disabled:opacity-50 transition-colors">
+            {exportingPdf ? '...' : '⬇ PDF'}
           </button>
           <div className="relative" ref={versionRef}>
             <button
@@ -429,7 +458,13 @@ function MasterViewer({ doc, folderId, onSaved, onReviewResult }) {
                 href={`/api/export/docx?masterDocId=${doc.id}&versionId=${previewVersion.id}`}
                 className="text-sm text-gray-600 border border-gray-200 rounded-lg px-3 py-2 hover:bg-gray-50 transition-colors"
               >
-                ⬇ Last ned
+                ⬇ Word
+              </a>
+              <a
+                href={`/api/export/pdf?masterDocId=${doc.id}&versionId=${previewVersion.id}`}
+                className="text-sm text-gray-600 border border-gray-200 rounded-lg px-3 py-2 hover:bg-gray-50 transition-colors"
+              >
+                ⬇ PDF
               </a>
               <button
                 onClick={() => handleRestoreVersion(previewVersion)}
