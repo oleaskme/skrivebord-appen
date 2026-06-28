@@ -292,7 +292,7 @@ function MasterViewer({ doc, folderId, onSaved, onReviewResult }) {
         setDirty(false)
         onSaved()
       }
-      const res = await fetch(`/api/export/pdf?masterDocId=${doc.id}`)
+      const res = await fetch(`/api/export/docx?masterDocId=${doc.id}&format=pdf`)
       if (!res.ok) throw new Error('PDF-eksport feilet')
       const blob = await res.blob()
       const url  = URL.createObjectURL(blob)
@@ -461,7 +461,7 @@ function MasterViewer({ doc, folderId, onSaved, onReviewResult }) {
                 ⬇ Word
               </a>
               <a
-                href={`/api/export/pdf?masterDocId=${doc.id}&versionId=${previewVersion.id}`}
+                href={`/api/export/docx?masterDocId=${doc.id}&versionId=${previewVersion.id}&format=pdf`}
                 className="text-sm text-gray-600 border border-gray-200 rounded-lg px-3 py-2 hover:bg-gray-50 transition-colors"
               >
                 ⬇ PDF

@@ -4,6 +4,7 @@ import {
   AlignmentType, Footer, PageNumber, ShadingType, convertInchesToTwip,
   LineRuleType,
 } from 'docx'
+import PDFDocument from 'pdfkit'
 import { supabase } from '../_lib/supabase.js'
 
 const CHANGELOG_SEP = '--- Endringslogg ---'
@@ -34,6 +35,23 @@ const S = {
 
 const MARGIN = convertInchesToTwip(1.1)  // ~2,8 cm
 
+// ── PDF-stilkonstanter ──────────────────────────────────────────────────────
+const P = {
+  h1Color:    '#1E3A5F',
+  h2Color:    '#1E3A5F',
+  h3Color:    '#2E5F8A',
+  bodyColor:  '#2D2D2D',
+  footerColor:'#888888',
+  margin:     56,
+  h1Size:     22,
+  h2Size:     17,
+  h3Size:     14,
+  bodySize:   11,
+  footerSize:  9,
+}
+
+// ── DOCX-hjelpere ───────────────────────────────────────────────────────────
+
 const border = (color = S.tableBorder) => ({
   style: BorderStyle.SINGLE, size: 1, color,
 })
@@ -58,7 +76,6 @@ function styledRuns(html, size, color, forceBold = false) {
 }
 
 function preprocessHtml(html) {
-  // Mark <li> inside <ol> with a sequential counter so we can render them as numbered
   return html.replace(/<ol[^>]*>([\s\S]*?)<\/ol>/gi, (_, inner) => {
     let n = 0
     return inner.replace(/<li[^>]*>/gi, () => `<li data-num="${++n}">`)
@@ -66,7 +83,6 @@ function preprocessHtml(html) {
 }
 
 function cleanInner(raw) {
-  // Strip wrapping <p> that TipTap adds inside <li>, then trim whitespace
   return raw.replace(/<p>([\s\S]*?)<\/p>/gi, '$1').trim()
 }
 
@@ -107,7 +123,6 @@ function htmlToDocxParagraphs(html) {
     if (tag === 'li') {
       const numMatch = attrs.match(/data-num="(\d+)"/)
       if (numMatch) {
-        // Ordered list item — prepend number manually
         out.push(new Paragraph({
           spacing: { before: S.bodyBefore, after: S.bodyAfter, line: S.bodyLine, lineRule: LineRuleType.AUTO },
           indent: { left: 360 },
@@ -125,7 +140,6 @@ function htmlToDocxParagraphs(html) {
       }
       continue
     }
-    // p / blockquote
     if (inner) {
       out.push(new Paragraph({
         spacing: { before: S.bodyBefore, after: S.bodyAfter, line: S.bodyLine, lineRule: LineRuleType.AUTO },
@@ -147,7 +161,7 @@ function htmlToDocxParagraphs(html) {
 
 function isHtml(t) { return /^\s*</.test(t ?? '') }
 
-function parseContent(raw) {
+function parseContentDocx(raw) {
   if (!raw) return { bodyParagraphs: [], changelogLines: [] }
   const sepIdx = raw.indexOf(CHANGELOG_SEP)
   const bodyText      = sepIdx >= 0 ? raw.slice(0, sepIdx).trim() : raw.trim()
@@ -220,15 +234,174 @@ function makeChangelogTable(changelogLines) {
   })
 }
 
+// ── PDF-hjelpere ────────────────────────────────────────────────────────────
+
+function stripHtml(html) {
+  return html
+    .replace(/<\/?(?:strong|b|em|i|u|p|span)[^>]*>/gi, '')
+    .replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&nbsp;/g,' ')
+    .trim()
+}
+
+function parseContentPdf(raw) {
+  if (!raw) return { blocks: [], changelogLines: [] }
+  const sepIdx = raw.indexOf(CHANGELOG_SEP)
+  const bodyText      = sepIdx >= 0 ? raw.slice(0, sepIdx).trim() : raw.trim()
+  const changelogText = sepIdx >= 0 ? raw.slice(sepIdx + CHANGELOG_SEP.length).trim() : ''
+
+  const blocks = []
+  if (isHtml(bodyText)) {
+    const processed = preprocessHtml(bodyText)
+    const blockRe = /<(h[1-6]|p|li|blockquote|hr)([^>]*)>([\s\S]*?)<\/\1>|<hr[^>]*\/?>/gi
+    let match
+    while ((match = blockRe.exec(processed)) !== null) {
+      const tag   = (match[1] ?? 'hr').toLowerCase()
+      const attrs = match[2] ?? ''
+      const inner = cleanInner(match[3] ?? '')
+      if (tag === 'hr') { blocks.push({ type: 'hr' }); continue }
+      if (/^h[1-6]$/.test(tag)) { blocks.push({ type: tag, text: stripHtml(inner) }); continue }
+      if (tag === 'li') {
+        const numMatch = attrs.match(/data-num="(\d+)"/)
+        blocks.push({ type: 'li', text: stripHtml(inner), num: numMatch ? parseInt(numMatch[1]) : null })
+        continue
+      }
+      if (inner) blocks.push({ type: 'p', text: stripHtml(inner) })
+    }
+  } else {
+    for (const line of bodyText.split('\n')) {
+      if (line.trim()) blocks.push({ type: 'p', text: line.trim() })
+      else blocks.push({ type: 'blank' })
+    }
+  }
+
+  return {
+    blocks,
+    changelogLines: changelogText.split('\n').map(l => l.trim()).filter(Boolean),
+  }
+}
+
+function renderPdfBlocks(doc, blocks, pageWidth) {
+  const textWidth = pageWidth - P.margin * 2
+  for (const block of blocks) {
+    if (block.type === 'hr') {
+      doc.moveDown(0.3)
+      doc.moveTo(P.margin, doc.y).lineTo(pageWidth - P.margin, doc.y).strokeColor('#BBBBBB').lineWidth(0.5).stroke()
+      doc.moveDown(0.3); continue
+    }
+    if (block.type === 'blank') { doc.moveDown(0.5); continue }
+    if (block.type === 'h1') {
+      doc.moveDown(0.8)
+      doc.font('Helvetica-Bold').fontSize(P.h1Size).fillColor(P.h1Color)
+      doc.text(block.text, P.margin, doc.y, { width: textWidth })
+      doc.moveDown(0.3)
+      const y = doc.y
+      doc.moveTo(P.margin, y).lineTo(pageWidth - P.margin, y).strokeColor(P.h1Color).lineWidth(1).stroke()
+      doc.moveDown(0.4); continue
+    }
+    if (block.type === 'h2') {
+      doc.moveDown(0.7)
+      doc.font('Helvetica-Bold').fontSize(P.h2Size).fillColor(P.h2Color)
+      doc.text(block.text, P.margin, doc.y, { width: textWidth })
+      doc.moveDown(0.3); continue
+    }
+    if (block.type === 'h3') {
+      doc.moveDown(0.5)
+      doc.font('Helvetica-Bold').fontSize(P.h3Size).fillColor(P.h3Color)
+      doc.text(block.text, P.margin, doc.y, { width: textWidth })
+      doc.moveDown(0.2); continue
+    }
+    if (block.type === 'h4' || block.type === 'h5' || block.type === 'h6') {
+      doc.moveDown(0.4)
+      doc.font('Helvetica-Bold').fontSize(P.bodySize).fillColor(P.h3Color)
+      doc.text(block.text, P.margin, doc.y, { width: textWidth })
+      doc.moveDown(0.2); continue
+    }
+    if (block.type === 'li') {
+      doc.font('Helvetica').fontSize(P.bodySize).fillColor(P.bodyColor)
+      const prefix = block.num != null ? `${block.num}.  ` : '•  '
+      doc.text(prefix + block.text, P.margin + 12, doc.y, { width: textWidth - 12, lineGap: 2 })
+      doc.moveDown(0.15); continue
+    }
+    doc.font('Helvetica').fontSize(P.bodySize).fillColor(P.bodyColor)
+    doc.text(block.text, P.margin, doc.y, { width: textWidth, lineGap: 2 })
+    doc.moveDown(0.3)
+  }
+}
+
+function renderPdfChangelogTable(doc, changelogLines, pageWidth) {
+  const col1W = 100, col2W = pageWidth - P.margin * 2 - col1W
+  const rowH = 18, headerH = 20
+  doc.moveDown(0.5)
+  const hx = P.margin, hy = doc.y
+  doc.rect(hx, hy, col1W + col2W, headerH).fill('#D6E8F7')
+  doc.font('Helvetica-Bold').fontSize(P.bodySize).fillColor(P.bodyColor)
+  doc.text('Dato',    hx + 4,         hy + 4, { width: col1W - 8 })
+  doc.text('Endring', hx + col1W + 4, hy + 4, { width: col2W - 8 })
+  let y = hy + headerH
+  doc.rect(hx, hy, col1W + col2W, headerH).strokeColor('#BBBBBB').lineWidth(0.5).stroke()
+  for (const line of changelogLines) {
+    const colonIdx = line.indexOf(':')
+    const dato    = colonIdx > 0 ? line.slice(0, colonIdx).trim() : ''
+    const endring = colonIdx > 0 ? line.slice(colonIdx + 1).trim() : line
+    doc.font('Helvetica').fontSize(P.bodySize).fillColor(P.bodyColor)
+    doc.text(dato,    hx + 4,         y + 3, { width: col1W - 8 })
+    doc.text(endring, hx + col1W + 4, y + 3, { width: col2W - 8 })
+    doc.rect(hx, y, col1W + col2W, rowH).strokeColor('#BBBBBB').lineWidth(0.5).stroke()
+    y += rowH
+  }
+  doc.y = y
+}
+
+async function generatePdf(doc, content, version) {
+  const { blocks, changelogLines } = parseContentPdf(content)
+  const pdfDoc = new PDFDocument({ size: 'A4', margin: P.margin, bufferPages: true })
+  const pageWidth = pdfDoc.page.width
+  const chunks = []
+  pdfDoc.on('data', chunk => chunks.push(chunk))
+
+  pdfDoc.font('Helvetica-Bold').fontSize(P.h1Size).fillColor(P.h1Color)
+  pdfDoc.text(doc.name, P.margin, P.margin, { width: pageWidth - P.margin * 2 })
+  pdfDoc.moveDown(0.2)
+  const lineY = pdfDoc.y
+  pdfDoc.moveTo(P.margin, lineY).lineTo(pageWidth - P.margin, lineY).strokeColor(P.h1Color).lineWidth(1).stroke()
+  pdfDoc.moveDown(0.4)
+  pdfDoc.font('Helvetica-Oblique').fontSize(P.footerSize).fillColor(P.footerColor)
+  pdfDoc.text(`Versjon: v${version}   |   ${new Date().toLocaleDateString('nb-NO')}`, P.margin, pdfDoc.y)
+  pdfDoc.moveDown(0.8)
+
+  renderPdfBlocks(pdfDoc, blocks, pageWidth)
+
+  if (changelogLines.length > 0) {
+    pdfDoc.moveDown(0.5)
+    pdfDoc.font('Helvetica-Bold').fontSize(P.h2Size).fillColor(P.h2Color)
+    pdfDoc.text('Endringslogg', P.margin, pdfDoc.y)
+    pdfDoc.moveDown(0.4)
+    renderPdfChangelogTable(pdfDoc, changelogLines, pageWidth)
+  }
+
+  const totalPages = pdfDoc.bufferedPageRange().count
+  for (let i = 0; i < totalPages; i++) {
+    pdfDoc.switchToPage(i)
+    pdfDoc.font('Helvetica').fontSize(P.footerSize).fillColor(P.footerColor)
+    pdfDoc.text(`Side ${i + 1} av ${totalPages}`, P.margin, pdfDoc.page.height - P.margin, { width: pageWidth - P.margin * 2, align: 'right' })
+  }
+
+  const endPromise = new Promise(resolve => pdfDoc.on('end', resolve))
+  pdfDoc.end()
+  await endPromise
+  return Buffer.concat(chunks)
+}
+
+// ── Felles handler ───────────────────────────────────────────────────────────
+
 export default async function handler(req, res) {
-  const { masterDocId, versionId } = req.query
+  const { masterDocId, versionId, format } = req.query
   if (!masterDocId) return res.status(400).json({ error: 'masterDocId kreves' })
 
   const { data: doc } = await supabase
     .from('master_documents').select('*, folders(name)').eq('id', masterDocId).single()
   if (!doc) return res.status(404).json({ error: 'Dokument ikke funnet' })
 
-  // Hvis versionId er oppgitt, last ned den spesifikke versjonen
   let content = doc.content
   let version = `${String(doc.version_major).padStart(2,'0')}.${String(doc.version_minor).padStart(2,'0')}`
   if (versionId) {
@@ -240,7 +413,17 @@ export default async function handler(req, res) {
     }
   }
 
-  const { bodyParagraphs, changelogLines } = parseContent(content)
+  const safeName = doc.name.replace(/[^a-zA-Z0-9æøåÆØÅ _-]/g,'')
+
+  if (format === 'pdf') {
+    const buffer = await generatePdf(doc, content, version)
+    res.setHeader('Content-Type', 'application/pdf')
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(safeName)}_v${version}.pdf"`)
+    return res.send(buffer)
+  }
+
+  // Standard: Word (DOCX)
+  const { bodyParagraphs, changelogLines } = parseContentDocx(content)
 
   const children = [
     new Paragraph({
@@ -299,8 +482,7 @@ export default async function handler(req, res) {
   })
 
   const buffer = await Packer.toBuffer(wordDoc)
-  const filename = `${doc.name.replace(/[^a-zA-Z0-9æøåÆØÅ _-]/g,'')}_v${version}.docx`
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
-  res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(filename)}"`)
+  res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(safeName)}_v${version}.docx"`)
   res.send(buffer)
 }
